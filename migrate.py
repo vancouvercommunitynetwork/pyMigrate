@@ -2,6 +2,13 @@
 #
 # TODO
 #
+# Error Modes to Cover:
+#   No route to host: a remote machine can't be found on the network.
+#   Bad input file:
+#       The specified file doesn't exist.
+#       The specified file is empty.
+#       The specified file is binary and possibly huge.
+#       The file is wrong but coincidentally contains the username of a system user.
 
 
 import subprocess
@@ -38,16 +45,69 @@ def getLocalUserData():
     passwdDict = makeDictBySplitToFirstField(passwdEntries, ':')
 
     # Read the /etc/shadow file into a dictionary of lines keyed by username.
-    with open('/etc/shadow', 'r') as shadowPasswdFile:
+    with open('fakeShadow', 'r') as shadowPasswdFile:
+    # with open('/etc/shadow', 'r') as shadowPasswdFile:
         shadowEntries = shadowPasswdFile.read().splitlines()
     shadowDict = makeDictBySplitToFirstField(shadowEntries, ':')
 
     return passwdDict, shadowDict
 
 
+# Load user files from source and destination machines.
 srcPasswdDict, srcShadowDict = getLocalUserData()
 destPasswdDict, destShadowDict = getRemoteUserData('pi@192.168.1.11')
-print destPasswdDict['test3']
+
+# Load list of users.
+with open('list_of_users.txt', 'r') as localPasswdFile:
+    userList = localPasswdFile.read().splitlines()
+
+# Create three lists of user names.
+missingUsers, newUsers, changedUsers = [], [], []
+
+# Look for users that are missing from the source, new at the destination or
+# present at both but have account attributes that have changed.
+for username in userList:
+    # If a user is not found on the source machine then mark it as missing.
+    if username not in srcPasswdDict:
+        missingUsers.append(username)
+
+    # If a user exists at the source but not the destination then mark it as a new user.
+    if username in srcPasswdDict and username not in destPasswdDict:
+        newUsers.append(username)
+
+    # If a user exists at both the source and the destination then check if it has changed.
+    if username in srcPasswdDict and username in destPasswdDict:
+        if srcPasswdDict[username] != destPasswdDict[username]:
+            changedUsers.append(username)
+        elif srcShadowDict[username] != destShadowDict[username]:
+            changedUsers.append(username)
+
+# Migrate new users.
+if newUsers:
+    for username in newUsers:
+        # Disregard system users.
+        # if username.uid < 1000:  <-- I know this won't work, but something like this.
+
+        print "Migrating new user: " + username
+
+# Update chaned users.
+if changedUsers:
+    for username in changedUsers:
+        # Disregard system users.
+        # if username.uid < 1000:  <-- I know this won't work, but something like this.
+
+        print "Updating pre-existing users: " + username
+
+# Warn of user names that were not found on the source machine.
+if missingUsers:
+    print "WARNING: The following users could not be found on the source machine:",
+    for username in missingUsers:
+        print username,
+
+
+
+# print userList[1]
+# print destPasswdDict['test3']
 # print getLocalUserData()
 
 
