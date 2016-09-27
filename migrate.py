@@ -16,9 +16,14 @@ import subprocess
 
 
 class Account():
-    def __init__(self, passwdEntry, shadowEntry):            #  <------------- PICK UP HERE AND BELOW
-        # passwdString = passwdDict[username]
+    def __init__(self, passwdEntry, shadowEntry):
+        # Pull the needed fields from the entries. The field ordering in passwd and shadow are:
+        #    username:password:userID:groupID:gecos:homeDir:shell
+        #    username:password:lastchanged:minimum:maximum:warn:inactive:expire
         # TODO: split the strings into the fields and return an instance of Account
+        [self.username, self.password, self.uid, self.gid, self.gecos, self.homeDir, self.shell] = \
+            passwdEntry.split(':')
+
 
 # Converts a list of lines to a dictionary keyed on the first thing before the delimiter.
 def makeDictBySplitToFirstField(lines, delimiter):
@@ -60,7 +65,8 @@ def getLocalUserData():
 
 # Load user files from source and destination machines.
 srcPasswdDict, srcShadowDict = getLocalUserData()
-destPasswdDict, destShadowDict = getRemoteUserData('pi@192.168.1.11')
+destPasswdDict, destShadowDict = getRemoteUserData('root@192.168.20.45')
+# destPasswdDict, destShadowDict = getRemoteUserData('pi@192.168.1.11')
 
 # Load list of users.
 with open('list_of_users.txt', 'r') as localPasswdFile:
@@ -95,7 +101,7 @@ if newUsers:
         # Disregard system users.
         # if username.uid < 1000:  <-- I know this won't work, but something like this.
 
-        print "Migrating new user: " + username
+        print "Migrating new user: " + account.username
 
 # Update changed users.
 if changedUsers:
