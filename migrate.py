@@ -15,6 +15,11 @@ import subprocess
 # ssh = subprocess.Popen(['ssh', 'pi@192.168.1.11', 'cat', '/etc/passwd'], stdout=subprocess.PIPE)
 
 
+class Account():
+    def __init__(self, passwdEntry, shadowEntry):            #  <------------- PICK UP HERE AND BELOW
+        # passwdString = passwdDict[username]
+        # TODO: split the strings into the fields and return an instance of Account
+
 # Converts a list of lines to a dictionary keyed on the first thing before the delimiter.
 def makeDictBySplitToFirstField(lines, delimiter):
     dict = {}
@@ -85,12 +90,14 @@ for username in userList:
 # Migrate new users.
 if newUsers:
     for username in newUsers:
+        # Convert username to user Account instance.
+        account = Account(srcPasswdDict[username], srcShadowDict[username])    # <------------ PICK UP HERE AND ABOVE
         # Disregard system users.
         # if username.uid < 1000:  <-- I know this won't work, but something like this.
 
         print "Migrating new user: " + username
 
-# Update chaned users.
+# Update changed users.
 if changedUsers:
     for username in changedUsers:
         # Disregard system users.
