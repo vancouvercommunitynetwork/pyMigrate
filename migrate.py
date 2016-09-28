@@ -2,10 +2,12 @@
 #
 #
 # TO DO
-# Make useradd either not create a mail folder or specify the mail folder as /dev/null and suppress the error message it produces.
+# Make useradd specify the mail folder as /dev/null and suppress the corresponding error message.
 # Auto-change home directory to just /home
 # Propagate user deletions. If they're not on the source they should be deleted from the destination.
 # Document that passwords are the only user change this program updates.
+# Write a getUserData(target=None) function that returns a list of usernames and a dictionary of Accounts.
+# Remove the functions that return dictionaries of entries after switching over to getUserData().
 # Error Modes to Cover:
 #   No route to host: a remote machine can't be found on the network.
 #   No SSH pre-authorization for remote machine.
@@ -16,6 +18,16 @@
 #       The specified file is empty.
 #       The specified file is binary and possibly huge.
 #       The file is wrong but coincidentally contains the username of a system user.
+# Setup the script to return error codes
+
+# Source Code Terminology
+#   Entry: A line from /etc/passwd or /etc/shadow containing fields separated by colons.
+#   Field: An item in a line from /etc/passwd or /etc/shadow.
+#   User: Synonym for username.
+#   Account: A data structure representing a user's data with attributes like UID and password.
+#   Source: The machine that users are migrating from.
+#   Destination: The machine that users are migrating to.
+#   Migrants: The users whose usernames are listed in the text file given to this program.
 
 
 import subprocess
@@ -48,7 +60,7 @@ def makeDictBySplitToFirstField(lines, delimiter):
 
 
 # Read remote /etc/passwd and /etc/shadow files into dictionaries keyed by username.
-def getRemoteUserData(target):
+def getRemoteUserEntries(target):
     # Read the /etc/passwd file into a list of lines, then convert it to a dictionary keyed by username.
     passwdFile = subprocess.Popen(['ssh', target, 'cat', '/etc/passwd'], stdout=subprocess.PIPE).stdout
     passwdEntries = passwdFile.read().splitlines()
@@ -63,7 +75,7 @@ def getRemoteUserData(target):
 
 
 # Read local /etc/passwd and /etc/shadow files into dictionaries keyed by username.
-def getLocalUserData():
+def getLocalUserEntries():
     # Read the /etc/passwd file into a list of lines.
     with open('/etc/passwd', 'r') as localPasswdFile:
         passwdEntries = localPasswdFile.read().splitlines()
@@ -92,7 +104,8 @@ def getNonSystemAccounts(usernameList, passwdDict, shadowDict):
     return accountList
 
 
-def sshAddRemoteUser(target, account):
+# Create a new user account at a remote machine.
+def addRemoteUser(target, account):
     # Construct command.
     cmd = 'ssh -n ' + target + ' /usr/sbin/useradd -p "' + \
           account.password + '" -u ' + account.uid + ' -g ' + account.gid
@@ -104,7 +117,8 @@ def sshAddRemoteUser(target, account):
         print output
 
 
-def sshDeleteRemoteUser(target, username):
+# Delete a user account at a remote machine.
+def deleteRemoteUser(target, username):
     # Construct command.
     cmd = 'ssh -n ' + target + ' /usr/sbin/deluser ' + username
     output = commands.getoutput(cmd)
@@ -112,7 +126,8 @@ def sshDeleteRemoteUser(target, username):
         print output
 
 
-def sshChangeUserPassword(target, username, newPassword):
+# Change a user password at a remote machine
+def changeRemoteUserPassword(target, username, newPassword):
     # Construct command.
     cmd = "ssh -n " + target + " /usr/sbin/usermod -p '" + newPassword + "' " + username
 
@@ -121,6 +136,7 @@ def sshChangeUserPassword(target, username, newPassword):
         print output
 
 
+# Turn a list of usernames into a string while limiting the possible length of the string.
 def limitedUserListString(userList):
     global MOST_USERNAMES_TO_LIST
     returnString = ""
@@ -144,8 +160,8 @@ def main():
     migrantUsersFilename = 'list_of_users.txt'
 
     # Load user files from source and destination machines.
-    srcPasswdDict, srcShadowDict = getLocalUserData()
-    destPasswdDict, destShadowDict = getRemoteUserData(destAddress)
+    srcPasswdDict, srcShadowDict = getLocalUserEntries()
+    destPasswdDict, destShadowDict = getRemoteUserEntries(destAddress)
 
     # Load list of usernames from file of migrating users.
     with open(migrantUsersFilename, 'r') as migrantUsersFile:
@@ -183,20 +199,21 @@ def main():
         newAccounts = getNonSystemAccounts(newUsers, srcPasswdDict, srcShadowDict)
         for account in newAccounts:
             account.shell = "/usr/sbin/nologin"  # Disable shell for security sake.
+            account.homeDir = "/home"  # Give all users the same home directory.
             print "Migrating new user: " + account.username
-            sshAddRemoteUser(destAddress, account)
+            addRemoteUser(destAddress, account)
 
-    # Delete users at destination if they don't exist at source machine.
+    # Delete users at destination if they have been marked for destruction.
     if doomedUsers:
         for username in doomedUsers:
-            sshDeleteRemoteUser(destAddress, username)
+            deleteRemoteUser(destAddress, username)
 
     # Update changed users.
     if changedUsers:
         changedAccounts = getNonSystemAccounts(changedUsers, srcPasswdDict, srcShadowDict)
         for account in changedAccounts:
             print "Updating password for user: " + account.username
-            sshChangeUserPassword(destAddress, account.username, account.password)
+            changeRemoteUserPassword(destAddress, account.username, account.password)
 
     # Warn of usernames that were not found on the source machine.
     if missingUsers:
@@ -204,9 +221,9 @@ def main():
               "\" but could not be found on the source machine:",
         print limitedUserListString(missingUsers)
 
-    # Give a final accounting the user migration results.
+    # Give a final accounting of the user migration results.
     print '\nUser outcomes: ' + str(len(newUsers)) + " migrated, " + str(len(changedUsers)) \
-        + " updated, " + str(unchangedUserCount) + " unchanged, " \
+        + " updated, " + str(unchangedUserCount) + " unchanged, " + str(len(doomedUsers)) + " deleted, " \
         + str(len(missingUsers)) + " not found."
 
 main()
