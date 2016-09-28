@@ -8,6 +8,7 @@
 # Document that passwords are the only user change this program updates.
 # Write a getUserData(target=None) function that returns a list of usernames and a dictionary of Accounts.
 # Remove the functions that return dictionaries of entries after switching over to getUserData().
+# Add the feature of an unlistedUsersGetDeleted flag and default to false.
 # Error Modes to Cover:
 #   No route to host: a remote machine can't be found on the network.
 #   No SSH pre-authorization for remote machine.
@@ -29,6 +30,10 @@
 #   Destination: The machine that users are migrating to.
 #   Migrants: The users whose usernames are listed in the text file given to this program.
 
+# Conditions
+#   The program will not alter system users (uid<1000).
+#   The program will not alter user accounts on the machine it is run from.
+#   The program will not alter the text file it is given (the one listing users to be migrated).
 
 import subprocess
 import commands
@@ -57,6 +62,35 @@ def makeDictBySplitToFirstField(lines, delimiter):
         head = line.split(delimiter, 1)[0]
         dict[head] = line
     return dict
+
+
+# Read /etc/passwd and /etc/shadow files to produce a list of the non-system usernames
+# present on a system and a dictionary of Accounts keyed by username.
+def getUserData(target = None):
+    if target == None:
+        # Read the /etc/passwd file into a list of lines.
+        with open('/etc/passwd', 'r') as localPasswdFile:
+            passwdEntries = localPasswdFile.read().splitlines()
+
+        # Read the /etc/shadow file into a dictionary of lines keyed by username.
+        with open('/etc/shadow', 'r') as shadowPasswdFile:
+            shadowEntries = shadowPasswdFile.read().splitlines()
+    else:
+        # Read the /etc/passwd file into a list of lines, then convert it to a dictionary keyed by username.
+        passwdFile = subprocess.Popen(['ssh', target, 'cat', '/etc/passwd'], stdout=subprocess.PIPE).stdout
+        passwdEntries = passwdFile.read().splitlines()
+
+        # Read the /etc/shadow file into a list of lines, then convert it to a dictionary keyed by username.
+        shadowFile = subprocess.Popen(['ssh', target, 'cat', '/etc/shadow'], stdout=subprocess.PIPE).stdout
+        shadowEntries = shadowFile.read().splitlines()
+
+    users, userDict = [], {}
+    for line in passwdEntries:
+        username = line.split(':', 1)[0]  # Username is first field in a passwd entry.
+        userDict[username] = line
+        users.append(username)
+
+    return users, userDict
 
 
 # Read remote /etc/passwd and /etc/shadow files into dictionaries keyed by username.
@@ -137,7 +171,7 @@ def changeRemoteUserPassword(target, username, newPassword):
 
 
 # Turn a list of usernames into a string while limiting the possible length of the string.
-def limitedUserListString(userList):
+def usernameListToLimitedString(userList):
     global MOST_USERNAMES_TO_LIST
     returnString = ""
     # Construct a string listing users without being too long.
@@ -155,8 +189,8 @@ def limitedUserListString(userList):
 
 def main():
     # Settings that will later be taken as command-line arguments.
-    destAddress = 'root@192.168.20.45'
-    # destAddress = 'pi@192.168.1.11'
+    # destAddress = 'root@192.168.20.45'
+    destAddress = 'pi@192.168.1.11'
     migrantUsersFilename = 'list_of_users.txt'
 
     # Load user files from source and destination machines.
@@ -219,7 +253,7 @@ def main():
     if missingUsers:
         print "WARNING: The following users were named in \"" + migrantUsersFilename + \
               "\" but could not be found on the source machine:",
-        print limitedUserListString(missingUsers)
+        print usernameListToLimitedString(missingUsers)
 
     # Give a final accounting of the user migration results.
     print '\nUser outcomes: ' + str(len(newUsers)) + " migrated, " + str(len(changedUsers)) \
