@@ -2,8 +2,8 @@
 #
 #
 # TO DO
-# Explore all cases of whether a user is present at the source, present at the destination and/or present in the list_of_users.txt
 # Make useradd either not create a mail folder or specify the mail folder as /dev/null and suppress the error message it produces.
+# Auto-change home directory to just /home
 # Propagate user deletions. If they're not on the source they should be deleted from the destination.
 # Document that passwords are the only user change this program updates.
 # Error Modes to Cover:
@@ -26,16 +26,16 @@ LOWEST_USER_ID = 1000       # User IDs below this are for system accounts.
 MOST_USERNAMES_TO_LIST = 5  # No message should dump more than this many usernames.
 
 
-# An object to represent the attributes of a linux user account.
+# An object to represent the attributes of a Linux user account.
 class Account:
+    # Construct an Account object using entries taken from /etc/passwd and /etc/shadow.
     def __init__(self, passwdEntry, shadowEntry):
         # Pull the needed fields from the entries. The field ordering in passwd and shadow are:
         #    username:password:userID:groupID:gecos:homeDir:shell
         #    username:password:lastchanged:minimum:maximum:warn:inactive:expire
-        # TO DO: split the strings into the fields and return an instance of Account
         [self.username, self.password, self.uid, self.gid, self.gecos, \
             self.homeDir, self.shell] = passwdEntry.split(':')
-        self.password = shadowEntry.split(':')[1]  # Second field in shadow is password.
+        self.password = shadowEntry.split(':')[1]  # Second field in /etc/shadow is password.
 
 
 # Converts a list of lines to a dictionary keyed on the first thing before the delimiter.
@@ -47,6 +47,7 @@ def makeDictBySplitToFirstField(lines, delimiter):
     return dict
 
 
+# Read remote /etc/passwd and /etc/shadow files into dictionaries keyed by username.
 def getRemoteUserData(target):
     # Read the /etc/passwd file into a list of lines, then convert it to a dictionary keyed by username.
     passwdFile = subprocess.Popen(['ssh', target, 'cat', '/etc/passwd'], stdout=subprocess.PIPE).stdout
@@ -61,6 +62,7 @@ def getRemoteUserData(target):
     return passwdDict, shadowDict
 
 
+# Read local /etc/passwd and /etc/shadow files into dictionaries keyed by username.
 def getLocalUserData():
     # Read the /etc/passwd file into a list of lines.
     with open('/etc/passwd', 'r') as localPasswdFile:
@@ -75,6 +77,7 @@ def getLocalUserData():
     return passwdDict, shadowDict
 
 
+# Convert passwd and shadow dictionaries into a list of Accounts while stripping out system users.
 def getNonSystemAccounts(usernameList, passwdDict, shadowDict):
     accountList = []
     for username in usernameList:
@@ -138,22 +141,22 @@ def main():
     # Settings that will later be taken as command-line arguments.
     destAddress = 'root@192.168.20.45'
     # destAddress = 'pi@192.168.1.11'
-    userListFile = 'list_of_users.txt'
+    migrantUsersFilename = 'list_of_users.txt'
 
     # Load user files from source and destination machines.
     srcPasswdDict, srcShadowDict = getLocalUserData()
     destPasswdDict, destShadowDict = getRemoteUserData(destAddress)
 
-    # Load list of users.
-    with open(userListFile, 'r') as localPasswdFile:
-        userList = localPasswdFile.read().splitlines()
+    # Load list of usernames from file of migrating users.
+    with open(migrantUsersFilename, 'r') as migrantUsersFile:
+        migrantUsers = migrantUsersFile.read().splitlines()
 
-    # Create lists of user names and some counters.
+    # Create lists of usernames and some counters.
     missingUsers, newUsers, changedUsers, doomedUsers = [], [], [], []
     newUserCount, changedUserCount, unchangedUserCount = 0, 0, 0
 
     # Analyse users from the given text file of usernames.
-    for username in userList:
+    for username in migrantUsers:
         # If username not found at source machine add them to list of missing users.
         if username not in srcPasswdDict:
             missingUsers.append(username)
@@ -195,9 +198,9 @@ def main():
             print "Updating password for user: " + account.username
             sshChangeUserPassword(destAddress, account.username, account.password)
 
-    # Warn of user names that were not found on the source machine.
+    # Warn of usernames that were not found on the source machine.
     if missingUsers:
-        print "WARNING: The following users were named in \"" + userListFile + \
+        print "WARNING: The following users were named in \"" + migrantUsersFilename + \
               "\" but could not be found on the source machine:",
         print limitedUserListString(missingUsers)
 
