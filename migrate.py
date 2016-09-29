@@ -6,7 +6,6 @@
 # Create a few hundred users and test the running time of the program.
 # Add command-line options for deleting unlisted users and displaying help.
 # Test that it correctly produces the user outcomes described in the decision tree spreadsheet and make sure that you have one example of every combination so you can test that none of them interfere with each other.
-# Test whether you get problems if the group ID doesn't already exist at the destination machine.
 # Propagate user deletions. If they're not on the source they should be deleted from the destination.
 # Document that passwords are the only user change this program updates.
 # Write a getUserData(target=None) function that returns a list of usernames and a dictionary of Accounts.
@@ -133,7 +132,7 @@ def addRemoteUser(target, account):
     if account.gecos != "":
         cmd += '" -c "' + account.gecos + '"'
     cmd += ' -d "/home" -M -s "/usr/sbin/nologin" -K MAIL_DIR=/dev/null ' + account.username
-    executeCommandWithEcho(cmd)
+    return executeCommandWithEcho(cmd)
 
 
 # Delete a user account at a remote machine.
@@ -242,8 +241,8 @@ def main():
                 changedUsers.append(username)
 
     # Create lists of usernames and some counters.
-    missingUsers, newUsers = [], []
-    newUserCount, changedUserCount, unchangedUserCount = 0, 0, 0
+    missingUsers, newUsers, failedUsers = [], [], []
+    newUserCount, changedUserCount, unchangedUserCount, failedMigrationCount = 0, 0, 0, 0
 
     # Analyze migrating users listed in the given text file.
     for username in migrantUsers:
@@ -258,7 +257,14 @@ def main():
     # Migrate new users.
     for username in newUsers:
         print "Migrating new user: " + username  # DEBUG
-        addRemoteUser(destAddress, srcAccountDict[username])
+        result = addRemoteUser(destAddress, srcAccountDict[username])
+        if result == 0:
+            newUsers += 1
+        else:
+            print "useradd of " + username + " returned exit status " + str(result) + "."
+            newUsers.remove(username)
+            failedUsers.append(username)
+            failedMigrationCount += 1
 
     # Delete users at destination if they have been marked for destruction.
     for username in doomedUsers:
@@ -276,10 +282,11 @@ def main():
         print "Updated: " + usernameListToLimitedString(changedUsers)
         print "Deleted: " + usernameListToLimitedString(doomedUsers)
         print "Missing: " + usernameListToLimitedString(missingUsers)
+        print "Failed to migrate: " + usernameListToLimitedString(failedUsers)
 
     # Give a final accounting of the user migration results.
-    print "\nUser outcomes: " + str(len(newUsers)) + " migrated, " + str(len(changedUsers)) \
+    print "\nUser outcomes: " + str(newUserCount) + " migrated, " + str(len(changedUsers)) \
         + " updated, " + str(unchangedUserCount) + " unchanged, " + str(len(doomedUsers)) + " deleted, " \
-        + str(len(missingUsers)) + " not found."
+        + str(len(missingUsers)) + " missing, " + str(failedMigrationCount) + " failed migration."
 
 main()
