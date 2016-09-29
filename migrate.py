@@ -4,15 +4,7 @@
 # TO DO
 # Make sure that it locks out simultaneous execution.
 # Create a few hundred users and test the running time of the program.
-# Add command-line options for deleting unlisted users and displaying help.
 # Test that it correctly produces the user outcomes described in the decision tree spreadsheet and make sure that you have one example of every combination so you can test that none of them interfere with each other.
-# Propagate user deletions. If they're not on the source they should be deleted from the destination.
-# Document that passwords are the only user change this program updates.
-# Write a getUserData(target=None) function that returns a list of usernames and a dictionary of Accounts.
-# Remove the functions that return dictionaries of entries after switching over to getUserData().
-# Add the feature of an unlistedUsersGetDeleted flag and default to false.
-# Experiment with list operations to find concision. In particular, doomedUsers could be formed by list subtraction.
-# Test performance of list building. A for-loop over migrantUsers may be more efficient than using list comprehensions.
 # Error Modes to Cover:
 #   No route to host: a remote machine can't be found on the network.
 #   No SSH pre-authorization for remote machine.
@@ -24,7 +16,7 @@
 #       The specified file is empty.
 #       The specified file is binary and possibly huge.
 #       The file is wrong but coincidentally contains the username of a system user.
-# Setup the script to return error codes
+# Write the README.MD to describe the program.
 
 # Source Code Terminology
 #   Entry: A line from /etc/passwd or /etc/shadow containing fields separated by colons.
