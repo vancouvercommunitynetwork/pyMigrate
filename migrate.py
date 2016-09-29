@@ -49,6 +49,7 @@ LOWEST_USER_ID = 1000       # User IDs below this are for system accounts.
 MOST_USERNAMES_TO_LIST = 5  # No message should dump more than this many usernames.
 EXIT_CODE_FAILURE_TO_OPEN_LOCAL_FILE = 1
 EXIT_CODE_TOO_FEW_ARGUMENTS = 2
+EXIT_CODE_HELP_MESSAGE = 3
 
 # An object to represent the attributes of a Linux user account.
 class Account:
@@ -175,10 +176,13 @@ Transfer/update user accounts specified in USER LIST FILE to the DESTINATION com
 
   --help                 display this message
   -u, --delete-unlisted  removing a user from USER LIST FILE will cause it to be deleted at DESTINATION
+  -v, --verbose          provide more information about actions taken
 
 Example:
     ./migrate.py root@192.168.1.257 bunch_of_users.txt
 """
+
+
 def extractCommandLineOptions():
     options = []
     for item in sys.argv[1:]:
@@ -188,18 +192,31 @@ def extractCommandLineOptions():
 
 
 def main():
+    # Set default value(s).
+    deleteUnlistedUsersFlag = False
+    verboseOutput = False
+
+    # Check that the user has provided the minimum number of arguments.
     if len(sys.argv) < 3:
         printHelpMessage()
-        exit EXIT_CODE_TOO_FEW_ARGUMENTS
+        exit(EXIT_CODE_TOO_FEW_ARGUMENTS)
 
+    # Process any command-line options.
     options = extractCommandLineOptions()
+    for option in options:
+        if option == '-u' or option == '--delete-unlisted':
+            deleteUnlistedUsersFlag = True
+        if option == '-v' or option == '--verbose':
+            verboseOutput = True
+        if option == '--help':
+            printHelpMessage()
+            exit(EXIT_CODE_HELP_MESSAGE)
 
-    # Settings that will later be taken as command-line arguments.
-    destAddress = 'root@192.168.20.45'
-    # destAddress = 'pi@192.168.1.11'
-    migrantUsersFilename = 'list_of_users.txt'
-    deleteUnlistedUsersFlag = True
+    # Take destination and migrant list file from last two command-line arguments.
+    destAddress = sys.argv[-2]
+    migrantUsersFilename = sys.argv[-1]
 
+    # Read local and remote /etc/passwd and /etc/shadow files into lists and dictionaries.
     srcUsers, srcAccountDict = getNonSystemUserData()
     destUsers, destAccountDict = getNonSystemUserData(destAddress)
 
@@ -209,7 +226,7 @@ def main():
     # Any users at destination and not at source should be marked for deletion.
     doomedUsers = [user for user in destUsers if user not in srcUsers]
 
-    # If desired then also delete users who are not listed as migrants.
+    # Optionally delete users who are not listed as migrants.
     if deleteUnlistedUsersFlag:
         unlistedUsers = [user for user in destUsers if user not in migrantUsers]
         doomedUsers += [user for user in unlistedUsers if user not in doomedUsers]
@@ -250,11 +267,12 @@ def main():
         print "Updating password for user: " + username  # DEBUG
         updateRemoteUserPassword(destAddress, username, srcAccountDict[username].password)
 
-    # Warn of usernames that were not found on the source machine.
-    if missingUsers:
-        print "WARNING: The following users were named in \"" + migrantUsersFilename + \
-              "\" but could not be found on the source machine:",
-        print usernameListToLimitedString(missingUsers)
+    # Give a fuller accounting of user outcomes.
+    if verboseOutput:
+        print "Migrated: " + usernameListToLimitedString(newUsers)
+        print "Updated: " + usernameListToLimitedString(changedUsers)
+        print "Deleted: " + usernameListToLimitedString(doomedUsers)
+        print "Missing: " + usernameListToLimitedString(missingUsers)
 
     # Give a final accounting of the user migration results.
     print "\nUser outcomes: " + str(len(newUsers)) + " migrated, " + str(len(changedUsers)) \
