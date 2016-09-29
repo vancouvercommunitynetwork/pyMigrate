@@ -4,7 +4,7 @@
 # TO DO
 # Make sure that it locks out simultaneous execution.
 # Add command-line options for deleting unlisted users and displaying help.
-# Test that it correctly produces the user outcomes described in the decision tree spreadsheet.
+# Test that it correctly produces the user outcomes described in the decision tree spreadsheet and make sure that you have one example of every combination so you can test that none of them interfere with each other.
 # Test whether you get problems if the group ID doesn't already exist at the destination machine.
 # Propagate user deletions. If they're not on the source they should be deleted from the destination.
 # Document that passwords are the only user change this program updates.
@@ -42,12 +42,13 @@
 
 import subprocess
 import commands
+import sys
 
 # Constants
 LOWEST_USER_ID = 1000       # User IDs below this are for system accounts.
 MOST_USERNAMES_TO_LIST = 5  # No message should dump more than this many usernames.
 EXIT_CODE_FAILURE_TO_OPEN_LOCAL_FILE = 1
-
+EXIT_CODE_TOO_FEW_ARGUMENTS = 2
 
 # An object to represent the attributes of a Linux user account.
 class Account:
@@ -167,7 +168,32 @@ def usernameListToLimitedString(userList):
     return returnString
 
 
+def printHelpMessage():
+    print """
+Usage: ./migrate.py [OPTION]... [DESTINATION] [USER LIST FILE]
+Transfer/update user accounts specified in USER LIST FILE to the DESTINATION computer and delete users at the destination that no longer exist locally. The USER LIST FILE must contain a new-line separated list of usernames. Changed passwords are the only attribute that will be propagated and this will occur regardless of whether that user is in the USER LIST FILE.
+
+  --help                 display this message
+  -u, --delete-unlisted  removing a user from USER LIST FILE will cause it to be deleted at DESTINATION
+
+Example:
+    ./migrate.py root@192.168.1.257 bunch_of_users.txt
+"""
+def extractCommandLineOptions():
+    options = []
+    for item in sys.argv[1:]:
+        if item[0] == '-':
+            options.append(item)
+    return options
+
+
 def main():
+    if len(sys.argv) < 3:
+        printHelpMessage()
+        exit EXIT_CODE_TOO_FEW_ARGUMENTS
+
+    options = extractCommandLineOptions()
+
     # Settings that will later be taken as command-line arguments.
     destAddress = 'root@192.168.20.45'
     # destAddress = 'pi@192.168.1.11'
@@ -189,8 +215,14 @@ def main():
         doomedUsers += [user for user in unlistedUsers if user not in doomedUsers]
         print "Unlisted users: " + usernameListToLimitedString(unlistedUsers)  # DEBUG
 
+    # Update users that have changed their password.
+    changedUsers = []
+    for username in srcUsers:
+        if username in destUsers and username not in doomedUsers:
+            changedUsers.append(username)
+
     # Create lists of usernames and some counters.
-    missingUsers, newUsers, changedUsers = [], [], []
+    missingUsers, newUsers = [], []
     newUserCount, changedUserCount, unchangedUserCount = 0, 0, 0
 
     # Analyze migrating users listed in the given text file.
@@ -202,13 +234,6 @@ def main():
         # If username found at source but not at destination then copy user over.
         if username in srcUsers and username not in destUsers:
             newUsers.append(username)
-
-        # If username found at source and destination then check if password has changed.
-        if username in srcUsers and username in destUsers:
-            if srcAccountDict[username].password != destAccountDict[username].password:
-                changedUsers.append(username)
-            else:
-                unchangedUserCount += 1
 
     # Migrate new users.
     for username in newUsers:
