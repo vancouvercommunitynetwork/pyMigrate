@@ -2,8 +2,10 @@
 #
 #
 # TO DO
-# Make useradd specify the mail folder as /dev/null and suppress the corresponding error message.
-# Auto-change home directory to just /home
+# Make sure that it locks out simultaneous execution.
+# Add command-line options for deleting unlisted users and displaying help.
+# Test that it correctly produces the user outcomes described in the decision tree spreadsheet.
+# Test whether you get problems if the group ID doesn't already exist at the destination machine.
 # Propagate user deletions. If they're not on the source they should be deleted from the destination.
 # Document that passwords are the only user change this program updates.
 # Write a getUserData(target=None) function that returns a list of usernames and a dictionary of Accounts.
@@ -119,7 +121,7 @@ def addRemoteUser(target, account):
           account.password + '" -u ' + account.uid + ' -g ' + account.gid
     if account.gecos != "":
         cmd += '" -c "' + account.gecos + '"'
-    cmd += ' -d "/home" -M -s "/usr/sbin/nologin" ' + account.username
+    cmd += ' -d "/home" -M -s "/usr/sbin/nologin" -K MAIL_DIR=/dev/null ' + account.username
 
     output = commands.getoutput(cmd)
     if output:
