@@ -1,10 +1,13 @@
 <component name="ProjectDictionaryState">
   <dictionary name="vcn">
     <words>
+      <w>deluser</w>
       <w>dest</w>
       <w>nologin</w>
       <w>passwd</w>
       <w>sbin</w>
+      <w>useradd</w>
+      <w>usermod</w>
       <w>usernames</w>
     </words>
   </dictionary>
