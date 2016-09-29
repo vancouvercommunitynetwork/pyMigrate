@@ -9,11 +9,13 @@
 # Write a getUserData(target=None) function that returns a list of usernames and a dictionary of Accounts.
 # Remove the functions that return dictionaries of entries after switching over to getUserData().
 # Add the feature of an unlistedUsersGetDeleted flag and default to false.
+# Experiment with list operations to find best forms. In particular, doomedUsers should be formed by list subtraction.
 # Error Modes to Cover:
 #   No route to host: a remote machine can't be found on the network.
 #   No SSH pre-authorization for remote machine.
 #   SSH pre-authorization for remote machine exists but lacks root privilege.
 #   Insufficient privilege. No root access on local machine.
+#   The file couldn't be opened for lack of root privilege (local and remote /etc/shadow access).
 #   Bad input file:
 #       The specified file doesn't exist.
 #       The specified file is empty.
@@ -54,6 +56,14 @@ class Account:
             self.homeDir, self.shell] = passwdEntry.split(':')
         self.password = shadowEntry.split(':')[1]  # Second field in /etc/shadow is password.
 
+    # Construct an Account object from an /etc/passwd entry.
+    def __init__(self, passwdEntry):
+        # Pull the needed fields from the entries. The field ordering in passwd and shadow are:
+        #    username:password:userID:groupID:gecos:homeDir:shell
+        #    username:password:lastchanged:minimum:maximum:warn:inactive:expire
+        [self.username, self.password, self.uid, self.gid, self.gecos, \
+            self.homeDir, self.shell] = passwdEntry.split(':')
+
 
 # Converts a list of lines to a dictionary keyed on the first thing before the delimiter.
 def makeDictBySplitToFirstField(lines, delimiter):
@@ -66,31 +76,33 @@ def makeDictBySplitToFirstField(lines, delimiter):
 
 # Read /etc/passwd and /etc/shadow files to produce a list of the non-system usernames
 # present on a system and a dictionary of Accounts keyed by username.
-def getUserData(target = None):
-    if target == None:
-        # Read the /etc/passwd file into a list of lines.
-        with open('/etc/passwd', 'r') as localPasswdFile:
-            passwdEntries = localPasswdFile.read().splitlines()
-
-        # Read the /etc/shadow file into a dictionary of lines keyed by username.
-        with open('/etc/shadow', 'r') as shadowPasswdFile:
-            shadowEntries = shadowPasswdFile.read().splitlines()
+def getUserData(target=None):
+    # Get file handles.
+    if target is None:
+        passwdFile = open('/etc/passwd', 'r')
+        shadowFile = open('/etc/shadow', 'r')
     else:
-        # Read the /etc/passwd file into a list of lines, then convert it to a dictionary keyed by username.
         passwdFile = subprocess.Popen(['ssh', target, 'cat', '/etc/passwd'], stdout=subprocess.PIPE).stdout
-        passwdEntries = passwdFile.read().splitlines()
-
-        # Read the /etc/shadow file into a list of lines, then convert it to a dictionary keyed by username.
         shadowFile = subprocess.Popen(['ssh', target, 'cat', '/etc/shadow'], stdout=subprocess.PIPE).stdout
-        shadowEntries = shadowFile.read().splitlines()
 
-    users, userDict = [], {}
-    for line in passwdEntries:
-        username = line.split(':', 1)[0]  # Username is first field in a passwd entry.
-        userDict[username] = line
-        users.append(username)
+    # Split text files into lists of lines.
+    passwdEntries = passwdFile.read().splitlines()
+    shadowEntries = shadowFile.read().splitlines()
 
-    return users, userDict
+    # Construct user list and preliminary user dictionary from passwd file entries.
+    users, userAccountDict = [], {}
+    for passwdEntry in passwdEntries:
+        account = Account(passwdEntry)
+        users.append(account.username)
+        userAccountDict[account.username] = account
+
+    # Replace account password field placeholders with actual passwords from /etc/shadow entries.
+    for shadowEntry in shadowEntries:
+        shadowFields = shadowEntry.split(':')
+        username, shadowPassword = shadowFields[0], shadowFields[1]
+        userAccountDict[username].password = shadowPassword
+
+    return users, userAccountDict
 
 
 # Read remote /etc/passwd and /etc/shadow files into dictionaries keyed by username.
