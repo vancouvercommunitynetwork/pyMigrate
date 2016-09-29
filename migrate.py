@@ -9,7 +9,7 @@
 # Write a getUserData(target=None) function that returns a list of usernames and a dictionary of Accounts.
 # Remove the functions that return dictionaries of entries after switching over to getUserData().
 # Add the feature of an unlistedUsersGetDeleted flag and default to false.
-# Experiment with list operations to find best forms. In particular, doomedUsers should be formed by list subtraction.
+# Experiment with list operations to find concision. In particular, doomedUsers could be formed by list subtraction.
 # Error Modes to Cover:
 #   No route to host: a remote machine can't be found on the network.
 #   No SSH pre-authorization for remote machine.
@@ -43,6 +43,7 @@ import commands
 # Constants
 LOWEST_USER_ID = 1000       # User IDs below this are for system accounts.
 MOST_USERNAMES_TO_LIST = 5  # No message should dump more than this many usernames.
+EXIT_CODE_FAILURE_TO_OPEN_LOCAL_FILE = 1
 
 
 # An object to represent the attributes of a Linux user account.
@@ -66,24 +67,42 @@ class Account:
 
 
 # Converts a list of lines to a dictionary keyed on the first thing before the delimiter.
-def makeDictBySplitToFirstField(lines, delimiter):
-    dict = {}
-    for line in lines:
-        head = line.split(delimiter, 1)[0]
-        dict[head] = line
-    return dict
+# def makeDictBySplitToFirstField(lines, delimiter):
+#     dict = {}
+#     for line in lines:
+#         head = line.split(delimiter, 1)[0]
+#         dict[head] = line
+#     return dict
+
+
+# Attempt to open a local text file and convert to a list of lines.
+def textFileIntoLines(filePath):
+    try:
+        with open(filePath, 'r') as textFile:
+            textLines = textFile.read().splitlines()
+    except IOError as e:
+        print "ERROR: Unable to open local file."
+        print e
+        exit(EXIT_CODE_FAILURE_TO_OPEN_LOCAL_FILE)
+
+    return textLines
 
 
 # Read /etc/passwd and /etc/shadow files to produce a list of the non-system usernames
 # present on a system and a dictionary of Accounts keyed by username.
-def getUserData(target=None):
+def getNonSystemUserData(target=None):
     # Get file handles.
-    if target is None:
-        passwdFile = open('/etc/passwd', 'r')
-        shadowFile = open('/etc/shadow', 'r')
-    else:
-        passwdFile = subprocess.Popen(['ssh', target, 'cat', '/etc/passwd'], stdout=subprocess.PIPE).stdout
-        shadowFile = subprocess.Popen(['ssh', target, 'cat', '/etc/shadow'], stdout=subprocess.PIPE).stdout
+    if target is None:  # If no target was given then open local files.
+        try:
+            passwdFile = open('/etc/passwd', 'r')
+            shadowFile = open('/etc/shadow', 'r')
+        except IOError as e:
+            print "ERROR: Unable to open local file."
+            print e
+            exit(EXIT_CODE_FAILURE_TO_OPEN_LOCAL_FILE)
+    else:  # If a remote target was given then open remote files.
+        passwdFile = subprocess.Popen(['ssh', target, 'sudo cat', '/etc/passwd'], stdout=subprocess.PIPE).stdout
+        shadowFile = subprocess.Popen(['ssh', target, 'sudo cat', '/etc/shadow'], stdout=subprocess.PIPE).stdout
 
     # Split text files into lists of lines.
     passwdEntries = passwdFile.read().splitlines()
@@ -93,61 +112,63 @@ def getUserData(target=None):
     users, userAccountDict = [], {}
     for passwdEntry in passwdEntries:
         account = Account(passwdEntry)
-        users.append(account.username)
-        userAccountDict[account.username] = account
+        if int(account.uid) >= LOWEST_USER_ID:  # Ignore system users.
+            users.append(account.username)
+            userAccountDict[account.username] = account
 
     # Replace account password field placeholders with actual passwords from /etc/shadow entries.
     for shadowEntry in shadowEntries:
         shadowFields = shadowEntry.split(':')
         username, shadowPassword = shadowFields[0], shadowFields[1]
-        userAccountDict[username].password = shadowPassword
+        if username in userAccountDict:
+            userAccountDict[username].password = shadowPassword
 
     return users, userAccountDict
 
 
 # Read remote /etc/passwd and /etc/shadow files into dictionaries keyed by username.
-def getRemoteUserEntries(target):
-    # Read the /etc/passwd file into a list of lines, then convert it to a dictionary keyed by username.
-    passwdFile = subprocess.Popen(['ssh', target, 'cat', '/etc/passwd'], stdout=subprocess.PIPE).stdout
-    passwdEntries = passwdFile.read().splitlines()
-    passwdDict = makeDictBySplitToFirstField(passwdEntries, ':')
-
-    # Read the /etc/shadow file into a list of lines, then convert it to a dictionary keyed by username.
-    shadowFile = subprocess.Popen(['ssh', target, 'cat', '/etc/shadow'], stdout=subprocess.PIPE).stdout
-    shadowEntries = shadowFile.read().splitlines()
-    shadowDict = makeDictBySplitToFirstField(shadowEntries, ':')
-
-    return passwdDict, shadowDict
-
-
-# Read local /etc/passwd and /etc/shadow files into dictionaries keyed by username.
-def getLocalUserEntries():
-    # Read the /etc/passwd file into a list of lines.
-    with open('/etc/passwd', 'r') as localPasswdFile:
-        passwdEntries = localPasswdFile.read().splitlines()
-    passwdDict = makeDictBySplitToFirstField(passwdEntries, ':')
-
-    # Read the /etc/shadow file into a dictionary of lines keyed by username.
-    with open('/etc/shadow', 'r') as shadowPasswdFile:
-        shadowEntries = shadowPasswdFile.read().splitlines()
-    shadowDict = makeDictBySplitToFirstField(shadowEntries, ':')
-
-    return passwdDict, shadowDict
-
-
-# Convert passwd and shadow dictionaries into a list of Accounts while stripping out system users.
-def getNonSystemAccounts(usernameList, passwdDict, shadowDict):
-    accountList = []
-    for username in usernameList:
-        # Convert username to user Account instance.
-        account = Account(passwdDict[username], shadowDict[username])
-
-        # Disregard system users.
-        if account.uid < LOWEST_USER_ID:
-            continue
-        accountList.append(account)
-
-    return accountList
+# def getRemoteUserEntries(target):
+#     # Read the /etc/passwd file into a list of lines, then convert it to a dictionary keyed by username.
+#     passwdFile = subprocess.Popen(['ssh', target, 'cat', '/etc/passwd'], stdout=subprocess.PIPE).stdout
+#     passwdEntries = passwdFile.read().splitlines()
+#     passwdDict = makeDictBySplitToFirstField(passwdEntries, ':')
+#
+#     # Read the /etc/shadow file into a list of lines, then convert it to a dictionary keyed by username.
+#     shadowFile = subprocess.Popen(['ssh', target, 'cat', '/etc/shadow'], stdout=subprocess.PIPE).stdout
+#     shadowEntries = shadowFile.read().splitlines()
+#     shadowDict = makeDictBySplitToFirstField(shadowEntries, ':')
+#
+#     return passwdDict, shadowDict
+#
+#
+# # Read local /etc/passwd and /etc/shadow files into dictionaries keyed by username.
+# def getLocalUserEntries():
+#     # Read the /etc/passwd file into a list of lines.
+#     with open('/etc/passwd', 'r') as localPasswdFile:
+#         passwdEntries = localPasswdFile.read().splitlines()
+#     passwdDict = makeDictBySplitToFirstField(passwdEntries, ':')
+#
+#     # Read the /etc/shadow file into a dictionary of lines keyed by username.
+#     with open('/etc/shadow', 'r') as shadowPasswdFile:
+#         shadowEntries = shadowPasswdFile.read().splitlines()
+#     shadowDict = makeDictBySplitToFirstField(shadowEntries, ':')
+#
+#     return passwdDict, shadowDict
+#
+#
+# # Convert passwd and shadow dictionaries into a list of Accounts while stripping out system users.
+# def getNonSystemAccounts(usernameList, passwdDict, shadowDict):
+#     accountList = []
+#     for username in usernameList:
+#         # Convert username to user Account instance.
+#         account = Account(passwdDict[username], shadowDict[username])
+#
+#         # Disregard system users.
+#         if account.uid < LOWEST_USER_ID:
+#             continue
+#         accountList.append(account)
+#
+#     return accountList
 
 
 # Create a new user account at a remote machine.
@@ -205,71 +226,74 @@ def main():
     destAddress = 'pi@192.168.1.11'
     migrantUsersFilename = 'list_of_users.txt'
 
-    # Load user files from source and destination machines.
-    srcPasswdDict, srcShadowDict = getLocalUserEntries()
-    destPasswdDict, destShadowDict = getRemoteUserEntries(destAddress)
+    srcUsers, srcAccountDict = getNonSystemUserData()
+    destUsers, destAccountDict = getNonSystemUserData(destAddress)
 
     # Load list of usernames from file of migrating users.
-    with open(migrantUsersFilename, 'r') as migrantUsersFile:
-        migrantUsers = migrantUsersFile.read().splitlines()
+    migrantUsers = textFileIntoLines(migrantUsersFilename)
 
-    # Create lists of usernames and some counters.
-    missingUsers, newUsers, changedUsers, doomedUsers = [], [], [], []
-    newUserCount, changedUserCount, unchangedUserCount = 0, 0, 0
+    # Any users at destination and not at source should be marked for deletion.
+    doomedUsers = [user for user in destUsers if user not in srcUsers]
 
-    # Analyse users from the given text file of usernames.
-    for username in migrantUsers:
-        # If username not found at source machine add them to list of missing users.
-        if username not in srcPasswdDict:
-            missingUsers.append(username)
+    print doomedUsers
 
-        # If username found at source but not at destination then copy user over.
-        if username in srcPasswdDict and username not in destPasswdDict:
-            newUsers.append(username)
-
-        # If username not found at source but found at destination then delete user.
-        if username not in srcPasswdDict and username in destPasswdDict:
-            doomedUsers.append(username)
-
-        # If username found at source and destination then check if password has changed.
-        if username in srcPasswdDict and username in destPasswdDict:
-            srcPassword = srcShadowDict[username].split(':')[1]
-            destPassword = destShadowDict[username].split(':')[1]
-            if srcPassword != destPassword:
-                changedUsers.append(username)
-            else:
-                unchangedUserCount += 1
-
-    # Migrate new users.
-    if newUsers:
-        newAccounts = getNonSystemAccounts(newUsers, srcPasswdDict, srcShadowDict)
-        for account in newAccounts:
-            account.shell = "/usr/sbin/nologin"  # Disable shell for security sake.
-            account.homeDir = "/home"  # Give all users the same home directory.
-            print "Migrating new user: " + account.username
-            addRemoteUser(destAddress, account)
-
-    # Delete users at destination if they have been marked for destruction.
-    if doomedUsers:
-        for username in doomedUsers:
-            deleteRemoteUser(destAddress, username)
-
-    # Update changed users.
-    if changedUsers:
-        changedAccounts = getNonSystemAccounts(changedUsers, srcPasswdDict, srcShadowDict)
-        for account in changedAccounts:
-            print "Updating password for user: " + account.username
-            changeRemoteUserPassword(destAddress, account.username, account.password)
-
-    # Warn of usernames that were not found on the source machine.
-    if missingUsers:
-        print "WARNING: The following users were named in \"" + migrantUsersFilename + \
-              "\" but could not be found on the source machine:",
-        print usernameListToLimitedString(missingUsers)
-
-    # Give a final accounting of the user migration results.
-    print '\nUser outcomes: ' + str(len(newUsers)) + " migrated, " + str(len(changedUsers)) \
-        + " updated, " + str(unchangedUserCount) + " unchanged, " + str(len(doomedUsers)) + " deleted, " \
-        + str(len(missingUsers)) + " not found."
+    # # Create lists of usernames and some counters.
+    # missingUsers, newUsers, changedUsers, doomedUsers = [], [], [], []
+    # newUserCount, changedUserCount, unchangedUserCount = 0, 0, 0
+    #
+    # # Analyse users from the given text file of usernames.
+    # for username in migrantUsers:
+    #     # If username not found at source machine add them to list of missing users.
+    #     if username not in srcPasswdDict:
+    #         missingUsers.append(username)
+    #
+    #     # If username found at source but not at destination then copy user over.
+    #     if username in srcPasswdDict and username not in destPasswdDict:
+    #         newUsers.append(username)
+    #
+    #     # If username not found at source but found at destination then delete user.
+    #     if username not in srcPasswdDict and username in destPasswdDict:
+    #         doomedUsers.append(username)
+    #
+    #     # If username found at source and destination then check if password has changed.
+    #     if username in srcPasswdDict and username in destPasswdDict:
+    #         srcPassword = srcShadowDict[username].split(':')[1]
+    #         destPassword = destShadowDict[username].split(':')[1]
+    #         if srcPassword != destPassword:
+    #             changedUsers.append(username)
+    #         else:
+    #             unchangedUserCount += 1
+    #
+    # # Migrate new users.
+    # if newUsers:
+    #     newAccounts = getNonSystemAccounts(newUsers, srcPasswdDict, srcShadowDict)
+    #     for account in newAccounts:
+    #         account.shell = "/usr/sbin/nologin"  # Disable shell for security sake.
+    #         account.homeDir = "/home"  # Give all users the same home directory.
+    #         print "Migrating new user: " + account.username
+    #         addRemoteUser(destAddress, account)
+    #
+    # # Delete users at destination if they have been marked for destruction.
+    # if doomedUsers:
+    #     for username in doomedUsers:
+    #         deleteRemoteUser(destAddress, username)
+    #
+    # # Update changed users.
+    # if changedUsers:
+    #     changedAccounts = getNonSystemAccounts(changedUsers, srcPasswdDict, srcShadowDict)
+    #     for account in changedAccounts:
+    #         print "Updating password for user: " + account.username
+    #         changeRemoteUserPassword(destAddress, account.username, account.password)
+    #
+    # # Warn of usernames that were not found on the source machine.
+    # if missingUsers:
+    #     print "WARNING: The following users were named in \"" + migrantUsersFilename + \
+    #           "\" but could not be found on the source machine:",
+    #     print usernameListToLimitedString(missingUsers)
+    #
+    # # Give a final accounting of the user migration results.
+    # print '\nUser outcomes: ' + str(len(newUsers)) + " migrated, " + str(len(changedUsers)) \
+    #     + " updated, " + str(unchangedUserCount) + " unchanged, " + str(len(doomedUsers)) + " deleted, " \
+    #     + str(len(missingUsers)) + " not found."
 
 main()
