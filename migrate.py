@@ -75,6 +75,14 @@ def textFileIntoLines(filePath):
     return textLines
 
 
+# Execute a console command and print results.
+def executeCommandWithEcho(command):
+    status, output = commands.getstatusoutput(command)
+    if output:
+        print output
+    return status
+
+
 # Read /etc/passwd and /etc/shadow files to produce a list of the non-system usernames
 # present on a system and a dictionary of Accounts keyed by username.
 def getNonSystemUserData(target=None):
@@ -124,30 +132,21 @@ def addRemoteUser(target, account):
     if account.gecos != "":
         cmd += '" -c "' + account.gecos + '"'
     cmd += ' -d "/home" -M -s "/usr/sbin/nologin" -K MAIL_DIR=/dev/null ' + account.username
-
-    output = commands.getoutput(cmd)
-    if output:
-        print output
+    executeCommandWithEcho(cmd)
 
 
 # Delete a user account at a remote machine.
 def deleteRemoteUser(target, username):
-    # Construct command.
+    # Construct and execute command to remotely delete user.
     cmd = 'ssh -n ' + target + ' /usr/sbin/deluser -quiet ' + username
-
-    output = commands.getoutput(cmd)
-    if output:
-        print output
+    executeCommandWithEcho(cmd)
 
 
 # Change a user password at a remote machine
 def updateRemoteUserPassword(target, username, newPassword):
-    # Construct command.
+    # Construct and execute command to remotely update user password
     cmd = "ssh -n " + target + " /usr/sbin/usermod -p '" + newPassword + "' " + username
-
-    output = commands.getoutput(cmd)
-    if output:
-        print output
+    executeCommandWithEcho(cmd)
 
 
 # Turn a list of usernames into a string but limit the possible length of the string.
