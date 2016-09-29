@@ -3,6 +3,7 @@
 #
 # TO DO
 # Make sure that it locks out simultaneous execution.
+# Create a few hundred users and test the running time of the program.
 # Add command-line options for deleting unlisted users and displaying help.
 # Test that it correctly produces the user outcomes described in the decision tree spreadsheet and make sure that you have one example of every combination so you can test that none of them interfere with each other.
 # Test whether you get problems if the group ID doesn't already exist at the destination machine.
@@ -235,7 +236,10 @@ def main():
     changedUsers = []
     for username in srcUsers:
         if username in destUsers and username not in doomedUsers:
-            changedUsers.append(username)
+            srcPassword = srcAccountDict[username].password
+            destPassword = destAccountDict[username].password
+            if srcPassword != destPassword:
+                changedUsers.append(username)
 
     # Create lists of usernames and some counters.
     missingUsers, newUsers = [], []
