@@ -15,11 +15,10 @@
 #       The specified file doesn't exist.
 #       The specified file is empty.
 #       The specified file is binary and possibly huge.
-#       The file is wrong but coincidentally contains the username of a system user.
 # Write the README.MD to describe the program.
 
 # Source Code Terminology
-#   Entry: A line from /etc/passwd or /etc/shadow containing fields separated by colons.
+#   Entry: A line from /etc/passwd or /etc/shadow containing. These contain fields separated by colons.
 #   Field: An item in a line from /etc/passwd or /etc/shadow.
 #   User: Synonym for username.
 #   Account: A data structure representing a user's data with attributes like UID and password.
@@ -183,6 +182,8 @@ def extractCommandLineOptions():
 
 
 def main():
+    # Check that another instance of the program isn't already running.
+
     # Set default value(s).
     deleteUnlistedUsersFlag = False
     verboseOutput = False
@@ -221,7 +222,6 @@ def main():
     if deleteUnlistedUsersFlag:
         unlistedUsers = [user for user in destUsers if user not in migrantUsers]
         doomedUsers += [user for user in unlistedUsers if user not in doomedUsers]
-        print "Unlisted users: " + usernameListToLimitedString(unlistedUsers)  # DEBUG
 
     # Update users that have changed their password.
     changedUsers = []
@@ -268,16 +268,19 @@ def main():
         print "Updating password for user: " + username  # DEBUG
         updateRemoteUserPassword(destAddress, username, srcAccountDict[username].password)
 
-    # Give a fuller accounting of user outcomes.
+    # Give a fuller accounting of user migration results.
     if verboseOutput:
+        print
+        print "Verbose Migration Description"
+        print "-----------------------------"
         print "Migrated: " + usernameListToLimitedString(newUsers)
-        print "Updated: " + usernameListToLimitedString(changedUsers)
-        print "Deleted: " + usernameListToLimitedString(doomedUsers)
-        print "Missing: " + usernameListToLimitedString(missingUsers)
-        print "Failed to migrate: " + usernameListToLimitedString(failedUsers)
+        print "Updated:  " + usernameListToLimitedString(changedUsers)
+        print "Deleted:  " + usernameListToLimitedString(doomedUsers)
+        print "Missing:  " + usernameListToLimitedString(missingUsers)
+        print "Failed:   " + usernameListToLimitedString(failedUsers)
 
     # Give a final accounting of the user migration results.
-    print "\nUser outcomes: " + str(newUserCount) + " migrated, " + str(len(changedUsers)) \
+    print "\nMigration Summary: " + str(newUserCount) + " migrated, " + str(len(changedUsers)) \
         + " updated, " + str(unchangedUserCount) + " unchanged, " + str(len(doomedUsers)) + " deleted, " \
         + str(len(missingUsers)) + " missing, " + str(failedMigrationCount) + " failed migration."
 
