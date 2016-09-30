@@ -76,7 +76,7 @@ def executeCommandWithEcho(command):
 
 # Read /etc/passwd and /etc/shadow files to produce a list of the non-system usernames
 # present on a system and a dictionary of Accounts keyed by username.
-def getNonSystemUserData(target=None):
+def getUsers(target=None):
     # Get file handles.
     if target is None:  # If no target was given then open local files.
         try:
@@ -110,6 +110,16 @@ def getNonSystemUserData(target=None):
             userAccountDict[username].password = shadowPassword
 
     return users, userAccountDict
+
+
+# Get a list of usernames and a dictionary of user data from local machine.
+def getLocalUsers():
+    return getUsers()
+
+
+# Get a list of usernames and a dictionary of user data from remote machine.
+def getRemoteUsers(target):
+    return getUsers(target)
 
 
 # Create a new user account at a remote machine.
@@ -165,7 +175,7 @@ Usage: ./migrate.py [OPTION]... [DESTINATION] [USER LIST FILE]
 Transfer/update user accounts specified in USER LIST FILE to the DESTINATION computer and delete users at the destination that no longer exist locally. The USER LIST FILE must contain a new-line separated list of usernames. Changed passwords are the only attribute that will be propagated and this will occur regardless of whether that user is in the USER LIST FILE.
 
   --help                 display this message
-  -u, --delete-unlisted  removing a user from USER LIST FILE will cause it to be deleted at DESTINATION
+  -u, --unlisted-get-deleted  removing a user from USER LIST FILE will cause it to be deleted at DESTINATION
   -v, --verbose          provide more information about actions taken
 
 Example:
@@ -206,7 +216,7 @@ def main():
     # Process any command-line options.
     options = extractCommandLineOptions()
     for option in options:
-        if option == '-u' or option == '--delete-unlisted':
+        if option == '-u' or option == '--unlisted-get-deleted':
             deleteUnlistedUsersFlag = True
         if option == '-v' or option == '--verbose':
             verboseOutput = True
@@ -218,9 +228,9 @@ def main():
     destAddress = sys.argv[-2]
     userListFilename = sys.argv[-1]
 
-    # Read local and remote /etc/passwd and /etc/shadow files into lists and dictionaries.
-    srcUsers, srcAccountDict = getNonSystemUserData()
-    destUsers, destAccountDict = getNonSystemUserData(destAddress)
+    # Construct lists of existing users and dictionaries of their account data.
+    srcUsers, srcAccountDict = getLocalUsers()
+    destUsers, destAccountDict = getRemoteUsers(destAddress)
 
     # Load usernames from file listing migrating users.
     listedUsers = textFileIntoLines(userListFilename)
