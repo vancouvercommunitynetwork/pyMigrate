@@ -184,11 +184,26 @@ Example:
 
 
 # Return a list of all command-line arguments that start with a dash.
-def extractCommandLineOptions():
-    options = []
+def processCommandLineOptions():
+    # Isolate argument strings.
+    optionArguments = []
     for item in sys.argv[1:]:
         if item[0] == '-':
-            options.append(item)
+            optionArguments.append(item)
+
+    # Process command-line options.
+    options = {}
+    options['unlistedGetDeleteFlag'] = False
+    options['verbose'] = False
+    for option in optionArguments:
+        if option == '-u' or option == '--unlisted-get-deleted':
+            options['deleteUnlistedUsersFlag'] = True
+        if option == '-v' or option == '--verbose':
+            options['verboseOutput'] = True
+        if option == '--help':
+            printHelpMessage()
+            exit(EXIT_CODE_HELP_MESSAGE)
+
     return options
 
 
@@ -204,25 +219,13 @@ def createUnionOfLists(listOfLists):
 def main():
     # TO DO: Check that another instance of the program isn't already running.
 
-    # Set default value(s).
-    deleteUnlistedUsersFlag = False
-    verboseOutput = False
-
     # Check that the user has provided the minimum number of arguments.
     if len(sys.argv) < 3:
         printHelpMessage()
         exit(EXIT_CODE_TOO_FEW_ARGUMENTS)
 
-    # Process any command-line options.
-    options = extractCommandLineOptions()
-    for option in options:
-        if option == '-u' or option == '--unlisted-get-deleted':
-            deleteUnlistedUsersFlag = True
-        if option == '-v' or option == '--verbose':
-            verboseOutput = True
-        if option == '--help':
-            printHelpMessage()
-            exit(EXIT_CODE_HELP_MESSAGE)
+    # Get command line options.
+    options = processCommandLineOptions()
 
     # Take destination and migrant list file from last two command-line arguments.
     destAddress = sys.argv[-2]
@@ -239,7 +242,7 @@ def main():
     doomedUsers = [user for user in destUsers if user not in srcUsers]
 
     # Optionally delete users who are not listed as migrants.
-    if deleteUnlistedUsersFlag:
+    if options['deleteUnlistedUsersFlag']:
         unlistedUsers = [user for user in destUsers if user not in listedUsers]
         doomedUsers += [user for user in unlistedUsers if user not in doomedUsers]
 
@@ -298,7 +301,7 @@ def main():
         updateRemoteUserPassword(destAddress, username, srcAccountDict[username].password)
 
     # Give a fuller accounting of user migration results.
-    if verboseOutput:
+    if options['verboseOutput']:
         print
         print "Verbose Migration Description"
         print "-----------------------------"
