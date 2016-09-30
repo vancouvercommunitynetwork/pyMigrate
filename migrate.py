@@ -6,6 +6,7 @@
 # Create a few hundred users and test the running time of the program.
 # Test that it correctly produces the user outcomes described in the decision tree spreadsheet and make sure that you have one example of every combination so you can test that none of them interfere with each other.
 # Error Modes to Cover:
+#   User gives 3 command-line arguments but one of them is an option (which will get read as file list).
 #   No route to host: a remote machine can't be found on the network.
 #   No SSH pre-authorization for remote machine.
 #   SSH pre-authorization for remote machine exists but lacks root privilege.
@@ -204,7 +205,7 @@ def processCommandLineOptions():
             printHelpMessage()
             exit(EXIT_CODE_HELP_MESSAGE)
 
-    return options
+    return len(optionArguments), options
 
 
 # Create an ordered set of unique elements (the Python "sets" module is deprecated).
@@ -219,13 +220,13 @@ def createUnionOfLists(listOfLists):
 def main():
     # TO DO: Check that another instance of the program isn't already running.
 
+    # Get command line options.
+    optionCount, options = processCommandLineOptions()
+
     # Check that the user has provided the minimum number of arguments.
-    if len(sys.argv) < 3:
+    if len(sys.argv) - optionCount < 3:
         printHelpMessage()
         exit(EXIT_CODE_TOO_FEW_ARGUMENTS)
-
-    # Get command line options.
-    options = processCommandLineOptions()
 
     # Take destination and migrant list file from last two command-line arguments.
     destAddress = sys.argv[-2]
@@ -247,16 +248,16 @@ def main():
         doomedUsers += [user for user in unlistedUsers if user not in doomedUsers]
 
     # Update users that have changed their password.
-    changedUsers = []
+    updatingUsers = []
     for username in srcUsers:
         if username in destUsers and username not in doomedUsers:
             srcPassword = srcAccountDict[username].password
             destPassword = destAccountDict[username].password
             if srcPassword != destPassword:
-                changedUsers.append(username)
+                updatingUsers.append(username)
 
     # Create lists of usernames and some counters.
-    missingUsers, newUsers, failedUsers = [], [], []
+    missingUsers, migratingUsers, failedUsers = [], [], []
     newUserCount, changedUserCount, unchangedUserCount, failedMigrationCount = 0, 0, 0, 0
 
     # Analyze migrating users listed in the given text file.
@@ -267,11 +268,11 @@ def main():
 
         # If username found at source but not at destination then copy user over.
         if username in srcUsers and username not in destUsers:
-            newUsers.append(username)
+            migratingUsers.append(username)
 
     # Check that all users are accounted for.
     actionableUsers = createUnionOfLists([listedUsers, destUsers])
-    handledUsers = createUnionOfLists([doomedUsers, changedUsers, missingUsers, newUsers])
+    handledUsers = createUnionOfLists([doomedUsers, updatingUsers, missingUsers, migratingUsers])
     unhandledUsers = [x for x in actionableUsers if x not in handledUsers]
     # if len(unhandledUsers) > 0:
     #     print "ERROR: The following users were not h"
@@ -279,14 +280,14 @@ def main():
         #     print
 
     # Migrate new users.
-    for username in newUsers:
+    for username in migratingUsers:
         print "Migrating new user: " + username  # DEBUG
         result = addRemoteUser(destAddress, srcAccountDict[username])
         if result == 0:
-            newUsers += 1
+            migratingUsers += 1
         else:
             print "useradd of " + username + " returned exit status " + str(result) + "."
-            newUsers.remove(username)
+            migratingUsers.remove(username)
             failedUsers.append(username)
             failedMigrationCount += 1
 
@@ -296,7 +297,7 @@ def main():
         deleteRemoteUser(destAddress, username)
 
     # Update users who have changed their password.
-    for username in changedUsers:
+    for username in updatingUsers:
         print "Updating password for user: " + username  # DEBUG
         updateRemoteUserPassword(destAddress, username, srcAccountDict[username].password)
 
@@ -305,15 +306,20 @@ def main():
         print
         print "Verbose Migration Description"
         print "-----------------------------"
-        print "Migrated: " + usernameListToLimitedString(newUsers)
+        print "Migrated: " + usernameListToLimitedString(migratingUsers)
         print "Deleted:  " + usernameListToLimitedString(doomedUsers)
-        print "Updated:  " + usernameListToLimitedString(changedUsers)
+        print "Updated:  " + usernameListToLimitedString(updatingUsers)
         print "Missing:  " + usernameListToLimitedString(missingUsers)
         print "Failed:   " + usernameListToLimitedString(failedUsers)
 
-    # Give a final accounting of the user migration results.
-    print "\nMigration Summary: " + str(newUserCount) + " migrated, " + str(len(changedUsers)) \
-        + " updated, " + str(unchangedUserCount) + " unchanged, " + str(len(doomedUsers)) + " deleted, " \
-        + str(len(missingUsers)) + " missing, " + str(failedMigrationCount) + " failed migration."
+    # Give a one-line summary of the user migration results.
+    print
+    print "Migration Summary:",
+    print str(newUserCount) + " migrated,",
+    print str(len(updatingUsers)) + " updated,",
+    print str(unchangedUserCount) + " unchanged,",
+    print str(len(doomedUsers)) + " deleted,",
+    print str(len(missingUsers)) + " missing,",
+    print str(failedMigrationCount) + " failed migration."
 
 main()
