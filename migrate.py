@@ -40,7 +40,7 @@ import fcntl
 # Constants
 LOWEST_USER_ID = 1000       # User IDs below this are for system accounts.
 MOST_USERNAMES_TO_LIST = 5  # No message should dump more than this many usernames.
-EXIT_CODE_SUCCCESS = 0
+EXIT_CODE_SUCCESS = 0
 EXIT_CODE_FAILURE_TO_OPEN_LOCAL_FILE = 1
 EXIT_CODE_TOO_FEW_ARGUMENTS = 2
 EXIT_CODE_HELP_MESSAGE = 3
@@ -278,8 +278,7 @@ def main():
     missingUsers = [u for u in listedUsers if u not in srcUsers and u not in destUsers]
 
     # Create lists of usernames and some counters.
-    failedUsers = []
-    migratedUserCount, changedUserCount, unchangedUserCount, failedMigrationCount = 0, 0, 0, 0
+    # migratedUserCount, changedUserCount, unchangedUserCount, failedMigrationCount = 0, 0, 0, 0
 
     # Analyze migrating users listed in the given text file.
     for username in listedUsers:
@@ -291,16 +290,16 @@ def main():
         if username in srcUsers and username not in destUsers:
             migratingUsers.append(username)
 
-    # Check that all users are accounted for.
+    # Optionally check that if all users are accounted for.
     if options['checkUsers']:
-        actionableUsers = createUnionOfLists([listedUsers, destUsers])
+        allUsers = createUnionOfLists([listedUsers, srcUsers, destUsers])
         handledUsers = createUnionOfLists([migratingUsers, doomedUsers, updatingUsers, missingUsers])
         ignoredUsers = [u for u in srcUsers if u not in listedUsers and u not in destUsers]
-        if options['deleteUnlistedUsersFlag']:
+        if not options['deleteUnlistedUsersFlag']:
             ignoredUsers += [u for u srcUsers if u in destUsers and u not in listedUsers]
         else:
             ignoredUsers += [u for u in srcUsers if u in destUsers]
-        unhandledUsers = [u for u in actionableUsers if u not in handledUsers and u not ignoredUsers]
+        unhandledUsers = [u for u in allUsers if u not in handledUsers and u not in ignoredUsers]
         if len(unhandledUsers) > 0:
             print "\nUSER CHECK FAILURE: The following users were not categorized: ",
             print unhandledUsers
@@ -315,16 +314,14 @@ def main():
         ###################################################################
     """
     # Migrate new users.
+    failedUsers = []
     for username in migratingUsers:
         print "Migrating new user: " + username  # DEBUG
         result = addRemoteUser(destAddress, srcAccountDict[username])
-        if result == 0:
-            migratingUsers += 1
-        else:
-            print "useradd of " + username + " returned exit status " + str(result) + "."
+        if result != 0:
+            print "Migration of " + username + " failed with useradd exit status " + str(result) + "."
             migratingUsers.remove(username)
             failedUsers.append(username)
-            failedMigrationCount += 1
 
     # Delete users at destination if they have been marked for destruction.
     for username in doomedUsers:
@@ -350,11 +347,10 @@ def main():
     # Give a one-line summary of the user migration results.
     print
     print "Migration Summary:",
-    print str(migratedUserCount) + " migrated,",
-    print str(len(updatingUsers)) + " updated,",
-    print str(unchangedUserCount) + " unchanged,",
+    print str(len(migratingUsers)) + " migrated,",
     print str(len(doomedUsers)) + " deleted,",
+    print str(len(updatingUsers)) + " updated,",
     print str(len(missingUsers)) + " missing,",
-    print str(failedMigrationCount) + " failed migration."
+    print str(len(failedUsers)) + " failed migration."
 
 main()
