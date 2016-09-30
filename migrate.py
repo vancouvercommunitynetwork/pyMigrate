@@ -173,6 +173,7 @@ Example:
 """
 
 
+# Return a list of all command-line arguments that start with a dash.
 def extractCommandLineOptions():
     options = []
     for item in sys.argv[1:]:
@@ -181,8 +182,17 @@ def extractCommandLineOptions():
     return options
 
 
+# Create an ordered set of unique elements (the Python "sets" module is deprecated).
+def createUnionOfLists(listOfLists):
+    itemDictionary = {}
+    for eachList in listOfLists:
+        for item in eachList:
+            itemDictionary[item] = None  # Create dictionary key (value is unimportant)
+    return itemDictionary.keys()
+
+
 def main():
-    # Check that another instance of the program isn't already running.
+    # TO DO: Check that another instance of the program isn't already running.
 
     # Set default value(s).
     deleteUnlistedUsersFlag = False
@@ -206,21 +216,21 @@ def main():
 
     # Take destination and migrant list file from last two command-line arguments.
     destAddress = sys.argv[-2]
-    migrantUsersFilename = sys.argv[-1]
+    userListFilename = sys.argv[-1]
 
     # Read local and remote /etc/passwd and /etc/shadow files into lists and dictionaries.
     srcUsers, srcAccountDict = getNonSystemUserData()
     destUsers, destAccountDict = getNonSystemUserData(destAddress)
 
-    # Load list of usernames from file of migrating users.
-    migrantUsers = textFileIntoLines(migrantUsersFilename)
+    # Load usernames from file listing migrating users.
+    listedUsers = textFileIntoLines(userListFilename)
 
     # Any users at destination and not at source should be marked for deletion.
     doomedUsers = [user for user in destUsers if user not in srcUsers]
 
     # Optionally delete users who are not listed as migrants.
     if deleteUnlistedUsersFlag:
-        unlistedUsers = [user for user in destUsers if user not in migrantUsers]
+        unlistedUsers = [user for user in destUsers if user not in listedUsers]
         doomedUsers += [user for user in unlistedUsers if user not in doomedUsers]
 
     # Update users that have changed their password.
@@ -237,7 +247,7 @@ def main():
     newUserCount, changedUserCount, unchangedUserCount, failedMigrationCount = 0, 0, 0, 0
 
     # Analyze migrating users listed in the given text file.
-    for username in migrantUsers:
+    for username in listedUsers:
         # If username not found at source machine add them to list of missing users.
         if username not in srcUsers:
             missingUsers.append(username)
@@ -245,6 +255,15 @@ def main():
         # If username found at source but not at destination then copy user over.
         if username in srcUsers and username not in destUsers:
             newUsers.append(username)
+
+    # Check that all users are accounted for.
+    actionableUsers = createUnionOfLists([listedUsers, destUsers])
+    handledUsers = createUnionOfLists([doomedUsers, changedUsers, missingUsers, newUsers])
+    unhandledUsers = [x for x in actionableUsers if x not in handledUsers]
+    # if len(unhandledUsers) > 0:
+    #     print "ERROR: The following users were not h"
+        # if username not in handledUsers:
+        #     print
 
     # Migrate new users.
     for username in newUsers:
@@ -274,8 +293,8 @@ def main():
         print "Verbose Migration Description"
         print "-----------------------------"
         print "Migrated: " + usernameListToLimitedString(newUsers)
-        print "Updated:  " + usernameListToLimitedString(changedUsers)
         print "Deleted:  " + usernameListToLimitedString(doomedUsers)
+        print "Updated:  " + usernameListToLimitedString(changedUsers)
         print "Missing:  " + usernameListToLimitedString(missingUsers)
         print "Failed:   " + usernameListToLimitedString(failedUsers)
 
