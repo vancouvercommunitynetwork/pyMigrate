@@ -5,18 +5,21 @@
 # Make sure that it locks out simultaneous execution.
 # Create a few hundred users and test the running time of the program.
 # Test that it correctly produces the user outcomes described in the decision tree spreadsheet and make sure that you have one example of every combination so you can test that none of them interfere with each other.
+# Write the README.MD to describe the program.
+
+# Change the program to take just an address and prepend root@ to it, then update your scripts that call migrate.py.
 # Error Modes to Cover:
 #   User gives 3 command-line arguments but one of them is an option (which will get read as file list).
-#   No route to host: a remote machine can't be found on the network.
-#   No SSH pre-authorization for remote machine.
-#   SSH pre-authorization for remote machine exists but lacks root privilege.
-#   Insufficient privilege. No root access on local machine.
-#   The file couldn't be opened for lack of root privilege (local and remote /etc/shadow access).
+#   Bad connection:
+#      Host is reachable but SSH server isn't running.
+#      No route to host: a remote machine can't be found on the network.
+#      No SSH pre-authorization for remote machine.
+#      SSH pre-authorization for remote machine exists but lacks root privilege.
+#   Insufficient local privilege. No root access on local machine.
 #   Bad input file:
 #       The specified file doesn't exist.
 #       The specified file is empty.
 #       The specified file is binary and possibly huge.
-# Write the README.MD to describe the program.
 
 # Source Code Terminology
 #   Entry: A line from /etc/passwd or /etc/shadow containing. These contain fields separated by colons.
@@ -27,10 +30,10 @@
 #   Destination: The machine that users are migrating to.
 #   Migrants: The users whose usernames are listed in the text file given to this program.
 
-# Conditions
-#   The program will not alter system users (uid<1000).
-#   The program will not alter user accounts on the machine it is run from.
-#   The program will not alter the text file it is given (the one listing users to be migrated).
+# Intentions
+#   The program should not alter system accounts (1000 <= uid < 60000).
+#   The program should not alter user accounts on the machine it is run from.
+#   The program should not alter the text file it is given (the one listing users to be migrated).
 
 import subprocess
 import commands
@@ -278,26 +281,16 @@ def main():
     # Determine which listed users are missing, if any.
     missingUsers = [u for u in listedUsers if u not in srcUsers and u not in destUsers]
 
-    # Analyze migrating users listed in the given text file.
-    for username in listedUsers:
-        # If username not found at source machine add them to list of missing users.
-        if username not in srcUsers:
-            missingUsers.append(username)
-
-        # If username found at source but not at destination then copy user over.
-        if username in srcUsers and username not in destUsers:
-            migratingUsers.append(username)
-
     # Optionally run the program in simulation mode.
     if options['simulationMode']:
-        allUsers = createUnionOfLists([listedUsers, srcUsers, destUsers])
-        handledUsers = createUnionOfLists([migratingUsers, doomedUsers, updatingUsers, missingUsers])
         ignoredUsers = [u for u in srcUsers if u not in listedUsers and u not in destUsers]
         if not options['unlistedGetDeletedFlag']:
-            ignoredUsers += [u for u in srcUsers if u in destUsers and u not in listedUsers]
-        else:
-            ignoredUsers += [u for u in srcUsers if u in destUsers]
-        unhandledUsers = [u for u in allUsers if u not in handledUsers and u not in ignoredUsers]
+            ignoredUsers += [u for u in srcUsers if u not in listedUsers and u in destUsers and u not in updatingUsers]
+        ignoredUsers += [u for u in srcUsers if u in destUsers and u in listedUsers and u not in updatingUsers]
+        ignoredUsers += [u for u in listedUsers if u in srcUsers and u in destUsers and u not in updatingUsers]
+        allUsers = createUnionOfLists([listedUsers, srcUsers, destUsers])
+        handledUsers = createUnionOfLists([migratingUsers, doomedUsers, updatingUsers, missingUsers, ignoredUsers])
+        unhandledUsers = [u for u in allUsers if u not in handledUsers]
         print "Simulated User Categorization"
         print "-----------------------------"
         print "  Migrate:   " + usernameListToLimitedString(migratingUsers)
@@ -307,10 +300,9 @@ def main():
         print "  Ignore:    " + usernameListToLimitedString(ignoredUsers)
         print "  Unhandled: " + usernameListToLimitedString(unhandledUsers)
         if len(unhandledUsers) > 0:
-            print "Simulation outcome: FAILURE (some users were not categorized)\n"
+            print "FAILED SIMULATION: Some users were not handled\n"
             exit(EXIT_CODE_FOUND_UNCATEGORIZED_USERS)
         else:
-            print "Simulation outcome: SUCCESS\n"
             exit(EXIT_CODE_SUCCESS)
 
     """
