@@ -38,7 +38,7 @@ import sys
 import fcntl
 
 # Constants
-LOWEST_USER_ID = 1000       # User IDs below this are for system accounts.
+LOWEST_USER_ID = 1001       # User IDs below this are not interfered with.
 MOST_USERNAMES_TO_LIST = 5  # No message should dump more than this many usernames.
 EXIT_CODE_SUCCESS = 0
 EXIT_CODE_FAILURE_TO_OPEN_LOCAL_FILE = 1
@@ -199,11 +199,12 @@ def processCommandLineOptions():
 
     # Process command-line options.
     options = {}
-    options['unlistedGetDeleteFlag'] = False
+    options['unlistedGetDeletedFlag'] = False
     options['verbose'] = False
+    options['checkUsers'] = False
     for option in optionArguments:
         if option == '-u' or option == '--unlisted-get-deleted':
-            options['deleteUnlistedUsersFlag'] = True
+            options['unlistedGetDeletedFlag'] = True
         elif option == '-v' or option == '--verbose':
             options['verboseOutput'] = True
         elif option == '-c' or option == '--check-users':
@@ -223,9 +224,6 @@ def createUnionOfLists(listOfLists):
         for item in eachList:
             itemDictionary[item] = None  # Create dictionary key (value is unimportant)
     return itemDictionary.keys()
-
-
-def passwordsMatch(u, srcAccountDict, destAccountDict):
 
 
 def main():
@@ -267,7 +265,7 @@ def main():
     doomedUsers = [u for u in destUsers if u not in srcUsers]
 
     # Optionally mark for deletion users that exist at both ends but are no longer listed.
-    if options['deleteUnlistedUsersFlag']:
+    if options['unlistedGetDeletedFlag']:
         doomedUsers += [u for u in destUsers if u in srcUsers and u not in listedUsers]
 
     # Update users that have changed their password.
@@ -276,9 +274,6 @@ def main():
 
     # Determine which listed users are missing, if any.
     missingUsers = [u for u in listedUsers if u not in srcUsers and u not in destUsers]
-
-    # Create lists of usernames and some counters.
-    # migratedUserCount, changedUserCount, unchangedUserCount, failedMigrationCount = 0, 0, 0, 0
 
     # Analyze migrating users listed in the given text file.
     for username in listedUsers:
@@ -295,8 +290,8 @@ def main():
         allUsers = createUnionOfLists([listedUsers, srcUsers, destUsers])
         handledUsers = createUnionOfLists([migratingUsers, doomedUsers, updatingUsers, missingUsers])
         ignoredUsers = [u for u in srcUsers if u not in listedUsers and u not in destUsers]
-        if not options['deleteUnlistedUsersFlag']:
-            ignoredUsers += [u for u srcUsers if u in destUsers and u not in listedUsers]
+        if not options['unlistedGetDeletedFlag']:
+            ignoredUsers += [u for u in srcUsers if u in destUsers and u not in listedUsers]
         else:
             ignoredUsers += [u for u in srcUsers if u in destUsers]
         unhandledUsers = [u for u in allUsers if u not in handledUsers and u not in ignoredUsers]
@@ -305,7 +300,12 @@ def main():
             print unhandledUsers
             exit(EXIT_CODE_FOUND_UNCATEGORIZED_USERS)
         else:
-            print "\nUSER CHECK SUCCESS: All users were succesfully categorized."
+            print "\nUSER CHECK SUCCESS"
+            print "Migrate: " + usernameListToLimitedString(migratingUsers)
+            print "Delete:  " + usernameListToLimitedString(doomedUsers)
+            print "Update:  " + usernameListToLimitedString(updatingUsers)
+            print "Missing: " + usernameListToLimitedString(missingUsers)
+            print "Ignore:  " + usernameListToLimitedString(ignoredUsers)
             exit(EXIT_CODE_SUCCESS)
 
     """
