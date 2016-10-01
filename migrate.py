@@ -197,11 +197,14 @@ def processCommandLineOptions():
         if item[0] == '-':
             optionArguments.append(item)
 
+    # Set default option values.
+    options = {
+        'unlistedGetDeletedFlag': False,
+        'verbose': False,
+        'checkUsers': False
+    }
+
     # Process command-line options.
-    options = {}
-    options['unlistedGetDeletedFlag'] = False
-    options['verbose'] = False
-    options['checkUsers'] = False
     for option in optionArguments:
         if option == '-u' or option == '--unlisted-get-deleted':
             options['unlistedGetDeletedFlag'] = True
@@ -212,7 +215,6 @@ def processCommandLineOptions():
         else:  # If --help or any unrecognized option
             printHelpMessage()
             exit(EXIT_CODE_HELP_MESSAGE)
-
 
     return len(optionArguments), options
 
