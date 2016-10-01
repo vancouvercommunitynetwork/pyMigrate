@@ -38,7 +38,7 @@ import sys
 import fcntl
 
 # Constants
-LOWEST_USER_ID = 1001       # User IDs below this are not interfered with.
+LOWEST_USER_ID, HIGHEST_USER_ID = 1001, 60000  # Inclusive range of effected users.
 MOST_USERNAMES_TO_LIST = 5  # No message should dump more than this many usernames.
 EXIT_CODE_SUCCESS = 0
 EXIT_CODE_FAILURE_TO_OPEN_LOCAL_FILE = 1
@@ -103,7 +103,7 @@ def getUsers(target=None):
     users, userAccountDict = [], {}
     for passwdEntry in passwdEntries:
         account = Account(passwdEntry)
-        if int(account.uid) >= LOWEST_USER_ID:  # Ignore system users.
+        if LOWEST_USER_ID <= int(account.uid) <= HIGHEST_USER_ID:  # Ignore irregular users.
             users.append(account.username)
             userAccountDict[account.username] = account
 
