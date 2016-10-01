@@ -176,13 +176,14 @@ def usernameListToLimitedString(userList):
 
 def printHelpMessage():
     print """
-Usage: ./migrate.py [OPTION]... [DESTINATION] [USER LIST FILE]
+Usage: ./migrate.py [OPTIONS]... [DESTINATION] [USER LIST FILE]
+
 Transfer/update user accounts specified in USER LIST FILE to the DESTINATION computer and delete users at the destination that no longer exist locally. The USER LIST FILE must contain a new-line separated list of usernames. Changed passwords are the only attribute that will be propagated and this will occur regardless of whether that user is in the USER LIST FILE.
 
-  --help                      display this message and quit.
-  -u, --unlisted-get-deleted  removing a user from USER LIST FILE will cause it to be deleted at DESTINATION.
-  -v, --verbose               provide more information about actions taken.
-  -c, --check-users           check that all users can be categorized and then quit.
+  --help                      display this message and quit
+  -u, --unlisted-get-deleted  removing a user from USER LIST FILE will delete it at DESTINATION
+  -v, --verbose               provide more information about actions taken
+  -s, --simulate              simulate running the program, but perform no actions
 
 Example:
     ./migrate.py root@192.168.1.257 bunch_of_users.txt
@@ -210,7 +211,7 @@ def processCommandLineOptions():
             options['unlistedGetDeletedFlag'] = True
         elif option == '-v' or option == '--verbose':
             options['verboseOutput'] = True
-        elif option == '-c' or option == '--check-users':
+        elif option == '-s' or option == '--simulate':
             options['checkUsers'] = True
         else:  # If --help or any unrecognized option
             printHelpMessage()
@@ -297,17 +298,19 @@ def main():
         else:
             ignoredUsers += [u for u in srcUsers if u in destUsers]
         unhandledUsers = [u for u in allUsers if u not in handledUsers and u not in ignoredUsers]
+        print "User Categorization"
+        print "-------------------"
+        print "  Migrate:   " + usernameListToLimitedString(migratingUsers)
+        print "  Delete:    " + usernameListToLimitedString(doomedUsers)
+        print "  Update:    " + usernameListToLimitedString(updatingUsers)
+        print "  Missing:   " + usernameListToLimitedString(missingUsers)
+        print "  Ignore:    " + usernameListToLimitedString(ignoredUsers)
+        print "  Unhandled: " + usernameListToLimitedString(unhandledUsers)
         if len(unhandledUsers) > 0:
-            print "\nUSER CHECK FAILURE: The following users were not categorized: ",
-            print unhandledUsers
+            print "User check outcome: FAILURE (some users were not categorized)\n"
             exit(EXIT_CODE_FOUND_UNCATEGORIZED_USERS)
         else:
-            print "\nUSER CHECK SUCCESS"
-            print "Migrate: " + usernameListToLimitedString(migratingUsers)
-            print "Delete:  " + usernameListToLimitedString(doomedUsers)
-            print "Update:  " + usernameListToLimitedString(updatingUsers)
-            print "Missing: " + usernameListToLimitedString(missingUsers)
-            print "Ignore:  " + usernameListToLimitedString(ignoredUsers)
+            print "User check outcome: SUCCESS\n"
             exit(EXIT_CODE_SUCCESS)
 
     """
