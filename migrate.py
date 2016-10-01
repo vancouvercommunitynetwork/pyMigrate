@@ -202,7 +202,7 @@ def processCommandLineOptions():
     options = {
         'unlistedGetDeletedFlag': False,
         'verbose': False,
-        'checkUsers': False
+        'simulationMode': False
     }
 
     # Process command-line options.
@@ -212,7 +212,7 @@ def processCommandLineOptions():
         elif option == '-v' or option == '--verbose':
             options['verboseOutput'] = True
         elif option == '-s' or option == '--simulate':
-            options['checkUsers'] = True
+            options['simulationMode'] = True
         else:  # If --help or any unrecognized option
             printHelpMessage()
             exit(EXIT_CODE_HELP_MESSAGE)
@@ -288,8 +288,8 @@ def main():
         if username in srcUsers and username not in destUsers:
             migratingUsers.append(username)
 
-    # Optionally check that if all users are accounted for.
-    if options['checkUsers']:
+    # Optionally run the program in simulation mode.
+    if options['simulationMode']:
         allUsers = createUnionOfLists([listedUsers, srcUsers, destUsers])
         handledUsers = createUnionOfLists([migratingUsers, doomedUsers, updatingUsers, missingUsers])
         ignoredUsers = [u for u in srcUsers if u not in listedUsers and u not in destUsers]
@@ -298,8 +298,8 @@ def main():
         else:
             ignoredUsers += [u for u in srcUsers if u in destUsers]
         unhandledUsers = [u for u in allUsers if u not in handledUsers and u not in ignoredUsers]
-        print "User Categorization"
-        print "-------------------"
+        print "Simulated User Categorization"
+        print "-----------------------------"
         print "  Migrate:   " + usernameListToLimitedString(migratingUsers)
         print "  Delete:    " + usernameListToLimitedString(doomedUsers)
         print "  Update:    " + usernameListToLimitedString(updatingUsers)
@@ -307,10 +307,10 @@ def main():
         print "  Ignore:    " + usernameListToLimitedString(ignoredUsers)
         print "  Unhandled: " + usernameListToLimitedString(unhandledUsers)
         if len(unhandledUsers) > 0:
-            print "User check outcome: FAILURE (some users were not categorized)\n"
+            print "Simulation outcome: FAILURE (some users were not categorized)\n"
             exit(EXIT_CODE_FOUND_UNCATEGORIZED_USERS)
         else:
-            print "User check outcome: SUCCESS\n"
+            print "Simulation outcome: SUCCESS\n"
             exit(EXIT_CODE_SUCCESS)
 
     """
