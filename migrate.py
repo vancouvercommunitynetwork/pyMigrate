@@ -26,14 +26,20 @@
 #   Field: An item in a line from /etc/passwd or /etc/shadow.
 #   User: Synonym for username.
 #   Account: A data structure representing a user's data with attributes like UID and password.
-#   Source: The machine that users are migrating from.
-#   Destination: The machine that users are migrating to.
-#   Migrants: The users whose usernames are listed in the text file given to this program.
+#   Source: The machine that users are migrating from (currently the local machine).
+#   Destination: The machine that users are migrating to (always a remote host).
+#   Listed users: The users whose usernames are listed in the text file given to this program.
 
 # Intentions
 #   The program should not alter system accounts (1000 <= uid < 60000).
 #   The program should not alter user accounts on the machine it is run from.
 #   The program should not alter the text file it is given (the one listing users to be migrated).
+
+# Performance Specs
+#   0.4 secs to process 100 users when no actions were necessary.
+#   13m17s to migrate 1000 users.
+#   0.6 secs to process 1000 users when no actions were necessary.
+#   21m27s to delete 1000 users.
 
 import subprocess
 import commands
@@ -203,19 +209,19 @@ def processCommandLineOptions():
 
     # Set default option values.
     options = {
-        'unlistedGetDeletedFlag': False,
+        'unlistedGetDeleted': False,
         'verbose': False,
-        'simulationMode': False
+        'simulate': False
     }
 
     # Process command-line options.
     for option in optionArguments:
         if option == '-u' or option == '--unlisted-get-deleted':
-            options['unlistedGetDeletedFlag'] = True
+            options['unlistedGetDeleted'] = True
         elif option == '-v' or option == '--verbose':
-            options['verboseOutput'] = True
+            options['verbose'] = True
         elif option == '-s' or option == '--simulate':
-            options['simulationMode'] = True
+            options['simulate'] = True
         else:  # If --help or any unrecognized option
             printHelpMessage()
             exit(EXIT_CODE_HELP_MESSAGE)
@@ -271,7 +277,7 @@ def main():
     doomedUsers = [u for u in destUsers if u not in srcUsers]
 
     # Optionally mark for deletion users that exist at both ends but are no longer listed.
-    if options['unlistedGetDeletedFlag']:
+    if options['unlistedGetDeleted']:
         doomedUsers += [u for u in destUsers if u in srcUsers and u not in listedUsers]
 
     # Update users that have changed their password.
@@ -282,10 +288,10 @@ def main():
     missingUsers = [u for u in listedUsers if u not in srcUsers and u not in destUsers]
 
     # Optionally run the program in simulation mode.
-    if options['simulationMode']:
+    if options['simulate']:
         # Determine all the users for whom no action is taken.
         ignoredUsers = [u for u in srcUsers if u not in listedUsers and u not in destUsers]
-        if not options['unlistedGetDeletedFlag']:
+        if not options['unlistedGetDeleted']:
             ignoredUsers += [u for u in srcUsers if u not in listedUsers and u in destUsers and u not in updatingUsers]
         ignoredUsers += [u for u in listedUsers if u in srcUsers and u in destUsers and u not in updatingUsers]
 
@@ -325,7 +331,7 @@ def main():
         updateRemoteUserPassword(destAddress, username, srcAccountDict[username].password)
 
     # Give a fuller accounting of user migration results.
-    if options['verboseOutput']:
+    if options['verbose']:
         print
         print "Verbose Migration Description"
         print "-----------------------------"

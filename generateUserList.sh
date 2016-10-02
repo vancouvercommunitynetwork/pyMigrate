@@ -2,9 +2,9 @@
 
 echo Overwriting userList.txt
 
-echo > userList.txt
+rm userList.txt
 
-for i in $(seq 10 1000)
+for i in $(seq 100 1099)
 do
     echo test$i >> userList.txt
 done
