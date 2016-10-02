@@ -275,7 +275,7 @@ def main():
         doomedUsers += [u for u in destUsers if u in srcUsers and u not in listedUsers]
 
     # Update users that have changed their password.
-    updatingUsers = [u for u in srcUsers if u in destUsers and
+    updatingUsers = [u for u in srcUsers if u in destUsers and u not in doomedUsers and
         srcAccountDict[u].password != destAccountDict[u].password]
 
     # Determine which listed users are missing, if any.
@@ -283,14 +283,13 @@ def main():
 
     # Optionally run the program in simulation mode.
     if options['simulationMode']:
+        # Determine all the users for whom no action is taken.
         ignoredUsers = [u for u in srcUsers if u not in listedUsers and u not in destUsers]
         if not options['unlistedGetDeletedFlag']:
             ignoredUsers += [u for u in srcUsers if u not in listedUsers and u in destUsers and u not in updatingUsers]
-        ignoredUsers += [u for u in srcUsers if u in destUsers and u in listedUsers and u not in updatingUsers]
         ignoredUsers += [u for u in listedUsers if u in srcUsers and u in destUsers and u not in updatingUsers]
-        allUsers = createUnionOfLists([listedUsers, srcUsers, destUsers])
-        handledUsers = createUnionOfLists([migratingUsers, doomedUsers, updatingUsers, missingUsers, ignoredUsers])
-        unhandledUsers = [u for u in allUsers if u not in handledUsers]
+
+        # Show simulation results and quit.
         print "Simulated User Categorization"
         print "-----------------------------"
         print "  Migrate:   " + usernameListToLimitedString(migratingUsers)
@@ -298,12 +297,7 @@ def main():
         print "  Update:    " + usernameListToLimitedString(updatingUsers)
         print "  Missing:   " + usernameListToLimitedString(missingUsers)
         print "  Ignore:    " + usernameListToLimitedString(ignoredUsers)
-        print "  Unhandled: " + usernameListToLimitedString(unhandledUsers)
-        if len(unhandledUsers) > 0:
-            print "FAILED SIMULATION: Some users were not handled\n"
-            exit(EXIT_CODE_FOUND_UNCATEGORIZED_USERS)
-        else:
-            exit(EXIT_CODE_SUCCESS)
+        exit(EXIT_CODE_SUCCESS)
 
     """
         ###################################################################
