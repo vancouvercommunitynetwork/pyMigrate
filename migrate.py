@@ -1,11 +1,15 @@
 #!/usr/bin/env python
 #
 # TO DO
+# Add a quiet-mode option that sends nothing to stdout.
+# Add logging using Python's syslog library (or whatever it's called). Don't log results of simulation mode though.
+# Store backups of the destination /etc/passwd and /etc/shadow every time a change is made to them. Save these backups to a subfolder but add an option for redirecting backups to some other destination.
+# Test as a frequent cronjob while messing around with users and see what happens. For example, if it's running in one console in quiet mode and you can see its output, then does it actually output anything while you're manipulating users.
 # Make it test the ssh connection and halt if unable to connect. You'll want something like:
 #   ssh -o BatchMode=yes root2@192.168.20.45 exit
 #   but you'll also need to add timeout functionality so it won't sit forever if the destination doesn't exist.
 # Change the program to prepend root@ to the destination address if no user is given (then update the helper scripts).
-# Capture the error that comes from lacking root authority to create the lock file.
+# Capture the error that comes from lacking root authority to create the lock file. If you put it into some kind of checkRoot() method then also call that when it comes time to access the local /etc/shadow file.
 
 # Error Modes to Cover:
 #   Bad connection:
