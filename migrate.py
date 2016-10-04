@@ -1,7 +1,9 @@
 #!/usr/bin/env python
 #
 # TO DO
-# Make it test the ssh connection and halt if unable to connect.
+# Make it test the ssh connection and halt if unable to connect. You'll want something like:
+#   ssh -o BatchMode=yes root2@192.168.20.45 exit
+#   but you'll also need to add timeout functionality so it won't sit forever if the destination doesn't exist.
 # Change the program to prepend root@ to the destination address if no user is given (then update the helper scripts).
 # Capture the error that comes from lacking root authority to create the lock file.
 
