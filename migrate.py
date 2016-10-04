@@ -1,10 +1,8 @@
 #!/usr/bin/env python
 #
-#
 # TO DO
 # Make it test the ssh connection and halt if unable to connect.
 # Change the program to prepend root@ to the destination address if no user is given (then update the helper scripts).
-# Move the testing scripts to a subdirectory called test.
 # Capture the error that comes from lacking root authority to create the lock file.
 
 # Error Modes to Cover:
