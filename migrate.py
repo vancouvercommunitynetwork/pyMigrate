@@ -3,7 +3,6 @@
 #
 # TO DO
 # See if newusers can create 15k users for you at both ends so you can try out a complete run of the program.
-# Test that it correctly produces the user outcomes described in the decision tree spreadsheet and make sure that you have one example of every combination so you can test that none of them interfere with each other.
 # Make it test the ssh connection and halt if unable to connect.
 # Write the README.MD to describe the program.
 # Change the program to prepend root@ to the destination address if no user is given (then update the helper scripts).
@@ -11,7 +10,6 @@
 # Capture the error that comes from lacking root authority to create the lock file.
 
 # Error Modes to Cover:
-#   User gives 3 command-line arguments but one of them is an option (which will get read as file list).
 #   Bad connection:
 #      Host is reachable but SSH server isn't running.
 #      No route to host: a remote machine can't be found on the network.
@@ -33,7 +31,7 @@
 #   Listed users: The users whose usernames are listed in the text file given to this program.
 
 # Intentions
-#   The program should not alter system accounts (1000 <= uid < 60000).
+#   The program should not alter system accounts (1001 < uid < 60000).
 #   The program should not alter user accounts on the machine it is run from.
 #   The program should not alter the text file it is given (the one listing users to be migrated).
 
@@ -44,10 +42,10 @@
 #   21m27s to delete 1000 users (avg 1.3secs/user).
 
 
-import subprocess
 import commands
-import sys
 import fcntl
+import subprocess
+import sys
 
 # Constants
 LOWEST_USER_ID, HIGHEST_USER_ID = 1001, 60000  # Inclusive range of effected users.
