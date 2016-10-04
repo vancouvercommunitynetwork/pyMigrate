@@ -2,14 +2,10 @@
 #
 #
 # TO DO
-# Make the print commands for individual actions only display with -v option (right now they're marked as DEBUG).
-# See if newusers can create 15k users for you at both ends so you can try out a complete run of the program.
 # Make it test the ssh connection and halt if unable to connect.
-# Write the README.MD to describe the program.
 # Change the program to prepend root@ to the destination address if no user is given (then update the helper scripts).
 # Move the testing scripts to a subdirectory called test.
 # Capture the error that comes from lacking root authority to create the lock file.
-# Search for remaining points in code marked as DEBUG.
 
 # Error Modes to Cover:
 #   Bad connection:
@@ -331,7 +327,8 @@ def main():
     # Migrate new users.
     failedUsers = []
     for username in migratingUsers:
-        print "Migrating new user: " + username  # DEBUG
+        if options['verbose']:
+            print "Migrating new user: " + username
         result = addRemoteUser(destAddress, srcAccountDict[username])
         if result != 0:
             print "Migration of " + username + " failed with useradd exit status " + str(result) + "."
@@ -340,12 +337,14 @@ def main():
 
     # Delete users at destination if they have been marked for destruction.
     for username in doomedUsers:
-        print "Deleting user: " + username  # DEBUG
+        if options['verbose']:
+            print "Deleting user: " + username
         deleteRemoteUser(destAddress, username)
 
     # Update users who have changed their password.
     for username in updatingUsers:
-        print "Updating password for user: " + username  # DEBUG
+        if options['verbose']:
+            print "Updating password for user: " + username
         updateRemoteUserPassword(destAddress, username, srcAccountDict[username].password)
 
     # Give a fuller accounting of user migration results.
