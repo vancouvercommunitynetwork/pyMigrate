@@ -2,18 +2,18 @@
 
 # A script for generating a set of users that will test all the use cases of the program.
 target="root@192.168.20.45"
-dummies="test_users.txt"
+dummies="list_of_users_for_testing.txt"
 
 rm $dummies  # Delete any existing copy of the list of test users.
 
 # Normal migration case.
 echo testm >> $dummies
-useradd -c "'fake user'" -u 2001 -g 1105 testm
+useradd -c "'fake user'" -u 2001 -g 1105 test_migrate
 ssh -n $target deluser testm
 
 # !list, !source, dest. Deleted.
 deluser testd1
-ssh -n $target useradd -c "'fake user'" -u 2002 -g 1105 testd1
+ssh -n $target useradd -c "'fake user'" -u 2002 -g 1105 test_delete_1
 
 # list, !source, dest. Deleted.
 echo testd2 >> $dummies
