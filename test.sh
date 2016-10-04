@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
-target="root@192.168.1.11"
+# A script for generating a set of users that will test all the use cases of the program.
+target="root@192.168.20.45"
 dummies="test_users.txt"
 
 rm $dummies  # Delete any existing copy of the list of test users.

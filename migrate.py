@@ -2,12 +2,14 @@
 #
 #
 # TO DO
-# Make sure that it locks out simultaneous execution.
-# Create a few hundred users and test the running time of the program.
+# See if newusers can create 15k users for you at both ends so you can try out a complete run of the program.
 # Test that it correctly produces the user outcomes described in the decision tree spreadsheet and make sure that you have one example of every combination so you can test that none of them interfere with each other.
+# Make it test the ssh connection and halt if unable to connect.
 # Write the README.MD to describe the program.
+# Change the program to prepend root@ to the destination address if no user is given (then update the helper scripts).
+# Move the testing scripts to a subdirectory called test.
+# Capture the error that comes from lacking root authority to create the lock file.
 
-# Change the program to take just an address and prepend root@ to it, then update your scripts that call migrate.py.
 # Error Modes to Cover:
 #   User gives 3 command-line arguments but one of them is an option (which will get read as file list).
 #   Bad connection:
@@ -37,9 +39,10 @@
 
 # Performance Specs
 #   0.4 secs to process 100 users when no actions were necessary.
-#   13m17s to migrate 1000 users.
+#   13m17s to migrate 1000 users (avg 0.8secs/user).
 #   0.6 secs to process 1000 users when no actions were necessary.
-#   21m27s to delete 1000 users.
+#   21m27s to delete 1000 users (avg 1.3secs/user).
+
 
 import subprocess
 import commands
@@ -54,6 +57,9 @@ EXIT_CODE_FAILURE_TO_OPEN_LOCAL_FILE = 1
 EXIT_CODE_TOO_FEW_ARGUMENTS = 2
 EXIT_CODE_HELP_MESSAGE = 3
 EXIT_CODE_FOUND_UNCATEGORIZED_USERS = 4
+
+# File handle for locking out multiple running instances (fcntl requires this to be global).
+lockFile = None
 
 
 # An object to represent the attributes of a Linux user account.
@@ -238,15 +244,27 @@ def createUnionOfLists(listOfLists):
     return itemDictionary.keys()
 
 
+def lockExecution():
+    global lockFile
+    LOCK_FILE = "/var/run/vcn_user_data_migration.lck"
+    lockFile = open(LOCK_FILE, 'w')
+    try:
+        fcntl.flock(lockFile, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except IOError:
+        print "ERROR: Another instance is already running."
+        sys.exit(1)
+
+
+"""
+    ###################################################################
+    ###########   START OF MAIN   #####################################
+    ###################################################################
+"""
+
+
 def main():
-    # TO DO: Check that another instance of the program isn't already running.
-    # pid_file = 'program.pid'
-    # fp = open(pid_file, 'w')
-    # try:
-    #     fcntl.lockf(fp, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    # except IOError:
-    #     # another instance is running
-    #     sys.exit(1)
+    # Prevent another instance of the program from running simultaneously.
+    lockExecution()
 
     # Get command line options.
     optionCount, options = processCommandLineOptions()
@@ -282,7 +300,7 @@ def main():
 
     # Update users that have changed their password.
     updatingUsers = [u for u in srcUsers if u in destUsers and u not in doomedUsers and
-        srcAccountDict[u].password != destAccountDict[u].password]
+                     srcAccountDict[u].password != destAccountDict[u].password]
 
     # Determine which listed users are missing, if any.
     missingUsers = [u for u in listedUsers if u not in srcUsers and u not in destUsers]
