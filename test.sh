@@ -8,40 +8,40 @@ rm $dummies  # Delete any existing copy of the list of test users.
 
 # Normal migration case.
 echo testm >> $dummies
-useradd -g 1105 testm
+useradd -c "fake user" -u 2001 -g 1105 testm
 ssh -n $target deluser testm
 
 # !list, !source, dest. Deleted.
 deluser testd1
-ssh -n $target useradd -g 1105 testd1
+ssh -n $target useradd -c "fake user" -u 2002 -g 1105 testd1
 
 # list, !source, dest. Deleted.
 echo testd2 >> $dummies
 deluser testd2
-ssh -n $target useradd -g 1105 testd2
+ssh -n $target useradd -c "fake user" -u 2003 -g 1105 testd2
 
 # !list, source, dest. Deleted if -u option, ignored otherwise.
-useradd -g 1105 testugd
-ssh -n $target useradd -g 1105 testugd
+useradd -c "fake user" -u 2004 -g 1105 testugd
+ssh -n $target useradd -c "fake user" -g 1105 testugd
 
 # !list, source, dest, changed. Deleted if -u option, updated otherwise.
-useradd -g 1105 testugdpass -p newpass
+useradd -c "fake user" -u 2005 -g 1105 testugdpass -p newpass
 ssh -n $target deluser testugdpass
-ssh -n $target useradd -g 1105 testugdpass -p oldpass
+ssh -n $target useradd -c "fake user" -g 1105 testugdpass -p oldpass
 
 # list, source, dest, changed. Updated.
 echo testpass >> $dummies
-useradd -g 1105 testpass -p newpass
+useradd -c "fake user" -u 2006 -g 1105 testpass -p newpass
 ssh -n $target deluser testpass
-ssh -n $target useradd -g 1105 testpass -p oldpass
+ssh -n $target useradd -c "fake user" -g 1105 testpass -p oldpass
 
 # list, !source, !dest. Missing.
 echo testmissing >> $dummies
 
 # !list, source, !dest. Ignored
-useradd -g 1105 testignore
+useradd -c "fake user" -u 2007 -g 1105 testignore
 
 # list, source, dest. Ignored.
 echo testignore2 >> $dummies
-useradd -g 1105 testignore2
-ssh -n $target useradd -g 1105 testignore2
+useradd -c "fake user" -u 2008 -g 1105 testignore2
+ssh -n $target useradd -c "fake user" -g 1105 testignore2

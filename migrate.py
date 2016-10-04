@@ -2,12 +2,14 @@
 #
 #
 # TO DO
+# Make the print commands for individual actions only display with -v option (right now they're marked as DEBUG).
 # See if newusers can create 15k users for you at both ends so you can try out a complete run of the program.
 # Make it test the ssh connection and halt if unable to connect.
 # Write the README.MD to describe the program.
 # Change the program to prepend root@ to the destination address if no user is given (then update the helper scripts).
 # Move the testing scripts to a subdirectory called test.
 # Capture the error that comes from lacking root authority to create the lock file.
+# Search for remaining points in code marked as DEBUG.
 
 # Error Modes to Cover:
 #   Bad connection:
@@ -146,11 +148,11 @@ def getRemoteUsers(target):
 #       shell is forced to be /usr/sbin/nologin
 def addRemoteUser(target, account):
     # Construct and execute command to remotely add user.
-    cmd = 'ssh -n ' + target + ' /usr/sbin/useradd -p "' + \
-          account.password + '" -u ' + account.uid + ' -g ' + account.gid
+    cmd = "ssh -n " + target + " /usr/sbin/useradd -p '\"" + \
+          account.password + "\"' -u " + account.uid + " -g " + account.gid
     if account.gecos != "":
-        cmd += '" -c "' + account.gecos + '"'
-    cmd += ' -d "/home" -M -s "/usr/sbin/nologin" -K MAIL_DIR=/dev/null ' + account.username
+        cmd += " -c '\"" + account.gecos + "\"'"
+    cmd += " -d /home -M -s /usr/sbin/nologin -K MAIL_DIR=/dev/null " + account.username
     return executeCommandWithEcho(cmd)
 
 
