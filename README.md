@@ -32,4 +32,4 @@
 ####  - Users that are being transferred will retain their group ID. That group ID must already exist at the destination machine.
 ## 
 ## Description of User Outcomes
-## ![outcomeTable.png](https://github.com/vancouvercommunitynetwork/pyMigrate/img/outcomeTable.png)
+## ![outcomeTable.png](https://github.com/vancouvercommunitynetwork/pyMigrate/master/img/outcomeTable.png)
