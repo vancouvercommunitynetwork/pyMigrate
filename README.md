@@ -4,10 +4,16 @@
 ### Usage: ./migrate.py [OPTIONS]... [DESTINATION] [USER LIST FILE]
 ### Transfer/update user accounts specified in USER LIST FILE to the DESTINATION computer and delete users at the destination that no longer exist locally. The USER LIST FILE must contain a new-line separated list of usernames. Changed passwords are the only attribute that will be propagated and this will occur regardless of whether that user is in the USER LIST FILE.
 ### The user list must be a text file containing a newline-separated list of usernames. The network destination needs to be pre-authorized for ssh access which can be done with ssh-keygen.
-###   --help display message explaining options and usage
-###   -u, --unlisted-get-deleted removing a user from USER LIST FILE will delete it at DESTINATION
-###   -v, --verbose provide more information about actions taken
-###   -s, --simulate simulate running the program, but perform no actions
+
+## Command-line Options
+###   --help 
+#### display message explaining options and usage
+###   -u, --unlisted-get-deleted
+#### removing a user from USER LIST FILE will delete it at DESTINATION
+###   -v, --verbose 
+#### provide more information about actions taken
+###   -s, --simulate 
+#### simulate running the program, but perform no actions
 
 ### 
 ### Example:
