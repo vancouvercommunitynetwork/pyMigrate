@@ -30,4 +30,6 @@
 ####  - Pre-authorized access must be connecting to the root account on the remote machine so it can remotely alter user accounts.
 ####  - Locale forwarding should be disabled to prevent ssh error messages if local and remote locale information differs (comment out SendEnv in the local /etc/ssh/ssh_config or AcceptEnv in the remote machine's /etc/ssh/ssh_config). The program will still work if you don't take care of this but a ton of warnings will be getting dumped to the local machine if the locales don't match.
 ####  - Users that are being transferred will retain their group ID. That group ID must already exist at the destination machine.
-
+## 
+## Description of User Outcomes
+## ![outcomeTable.png](https://github.com/vancouvercommunitynetwork/pyMigrate/img/outcomeTable.png)
