@@ -57,10 +57,11 @@ EXIT_CODE_FAILURE_TO_OPEN_LOCAL_FILE = 1
 EXIT_CODE_TOO_FEW_ARGUMENTS = 2
 EXIT_CODE_HELP_MESSAGE = 3
 EXIT_CODE_FOUND_UNCATEGORIZED_USERS = 4
+EXIT_CODE_UNRECOGNIZED_OPTION = 5
 
-# File handle for locking out multiple running instances (fcntl requires this to be global).
-lockFile = None
-
+# Global variables
+lockFile = None  # File handle for locking out multiple running instances (fcntl requires this to be global).
+options = None  # A dictionary of command-line option values.
 
 # An object to represent the attributes of a Linux user account.
 class Account:
@@ -89,7 +90,7 @@ def textFileIntoLines(filePath):
 # Execute a console command and print results.
 def executeCommandWithEcho(command):
     status, output = commands.getstatusoutput(command)
-    if output:
+    if output and not options['quiet']:
         print output
     return status
 
@@ -197,6 +198,7 @@ Transfer/update user accounts specified in USER LIST FILE to the DESTINATION com
   -u, --unlisted-get-deleted  removing a user from USER LIST FILE will delete it at DESTINATION
   -v, --verbose               provide more information about actions taken
   -s, --simulate              simulate running the program, but perform no actions
+  -q, --quiet                 run program without output to console
 
 Example:
     ./migrate.py root@192.168.1.257 bunch_of_users.txt
@@ -221,17 +223,21 @@ def processCommandLineOptions():
 
     # Process command-line options.
     for option in optionArguments:
-        if option == '-u' or option == '--unlisted-get-deleted':
+        if option == '--help':
+            printHelpMessage()
+            exit(EXIT_CODE_HELP_MESSAGE)
+        elif option == '-u' or option == '--unlisted-get-deleted':
             options['unlistedGetDeleted'] = True
         elif option == '-v' or option == '--verbose':
             options['verbose'] = True
         elif option == '-s' or option == '--simulate':
             options['simulate'] = True
-        elif option == 'q' or option == '--quiet':
+        elif option == '-q' or option == '--quiet':
             options['quiet'] = True
-        else:  # If --help or any unrecognized option
-            printHelpMessage()
-            exit(EXIT_CODE_HELP_MESSAGE)
+        else:
+            print "ERROR: Unrecognized option: " + option
+            print "To see command-line options use --help"
+            exit(EXIT_CODE_UNRECOGNIZED_OPTION)
 
     return len(optionArguments), options
 
@@ -264,9 +270,6 @@ def lockExecution():
 
 
 def main():
-    # Prevent another instance of the program from running simultaneously.
-    lockExecution()
-
     # Get command line options.
     optionCount, options = processCommandLineOptions()
 
@@ -274,6 +277,9 @@ def main():
     if len(sys.argv) - optionCount < 3:
         printHelpMessage()
         exit(EXIT_CODE_TOO_FEW_ARGUMENTS)
+
+    # Prevent another instance of the program from running simultaneously.
+    lockExecution()
 
     # Take destination and migrant list file from last two command-line arguments.
     destAddress = sys.argv[-2]
@@ -364,12 +370,13 @@ def main():
         print "Failed:   " + usernameListToLimitedString(failedUsers)
 
     # Give a one-line summary of the user migration results.
-    print
-    print "Migration Summary:",
-    print str(len(migratingUsers)) + " migrated,",
-    print str(len(doomedUsers)) + " deleted,",
-    print str(len(updatingUsers)) + " updated,",
-    print str(len(missingUsers)) + " missing,",
-    print str(len(failedUsers)) + " failed migration."
+    if not options['quiet'] :
+        print
+        print "Migration Summary:",
+        print str(len(migratingUsers)) + " migrated,",
+        print str(len(doomedUsers)) + " deleted,",
+        print str(len(updatingUsers)) + " updated,",
+        print str(len(missingUsers)) + " missing,",
+        print str(len(failedUsers)) + " failed migration."
 
 main()
