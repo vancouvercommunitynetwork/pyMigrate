@@ -215,7 +215,8 @@ def processCommandLineOptions():
     options = {
         'unlistedGetDeleted': False,
         'verbose': False,
-        'simulate': False
+        'simulate': False,
+        'quiet': False
     }
 
     # Process command-line options.
@@ -226,6 +227,8 @@ def processCommandLineOptions():
             options['verbose'] = True
         elif option == '-s' or option == '--simulate':
             options['simulate'] = True
+        elif option == 'q' or option == '--quiet':
+            options['quiet'] = True
         else:  # If --help or any unrecognized option
             printHelpMessage()
             exit(EXIT_CODE_HELP_MESSAGE)
