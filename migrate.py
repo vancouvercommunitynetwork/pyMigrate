@@ -18,10 +18,7 @@
 #      No SSH pre-authorization for remote machine.
 #      SSH pre-authorization for remote machine exists but lacks root privilege.
 #   Insufficient local privilege. No root access on local machine.
-#   Bad input file:
-#       The specified file doesn't exist.
-#       The specified file is empty.
-#       The specified file is binary and possibly huge.
+#   Input file listing users cannot be opened (most likely because it doesn't exist).
 
 # Source Code Terminology
 #   Entry: A line from /etc/passwd or /etc/shadow containing. These contain fields separated by colons.
@@ -349,7 +346,7 @@ def main():
         ###################################################################
     """
     # If changes will be made then perform a backup of the user files.
-    if True or migratingUsers or doomedUsers or updatingUsers: #DEBUG True
+    if migratingUsers or doomedUsers or updatingUsers:
         # Create the backups directory if necessary.
         executeCommand('ssh -n ' + destAddress + ' mkdir -p ' + options['backupDir'])
         timeStamp = datetime.datetime.now().strftime('%Y-%m-%d-%Hh-%Mm-%Ss')
