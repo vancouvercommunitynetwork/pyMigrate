@@ -12,9 +12,6 @@
 # Capture the error that comes from lacking root authority to create the lock file. If you put it into some kind of
 #   checkRoot() method then also call that when it comes time to access the local /etc/shadow file.
 # Do a code review to check for cruft.
-# Make it read the local /etc/group so you can extract the groupname of each user and use it to create
-#   that group name at the remote if necessary. You'll need to think carefully about how to do integrate that
-#   into getUsers() since that method covers both local and remote and we only need the local groups.
 
 # Error Modes to Cover:
 #   Bad connection:

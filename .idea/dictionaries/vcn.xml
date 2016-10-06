@@ -4,6 +4,7 @@
       <w>deluser</w>
       <w>dest</w>
       <w>fcntl</w>
+      <w>groupname</w>
       <w>mkdir</w>
       <w>nologin</w>
       <w>passwd</w>
