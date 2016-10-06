@@ -2,6 +2,7 @@
 #
 # TO DO
 # Add logging using Python's syslog library (or whatever it's called). Don't log results of simulation mode though.
+# Test all the error modes and look at their stdout and syslog outputs.
 # Test as a frequent cronjob while messing around with users and see what happens. For example, if it's running in one
 #   console in quiet mode then does it actually output anything while you're manipulating users in another console?
 # Make it test the ssh connection and halt if unable to connect. You'll want something like:
@@ -10,6 +11,7 @@
 # Find some cleaner way of consuming command-line arguments.
 # Capture the error that comes from lacking root authority to create the lock file. If you put it into some kind of
 #   checkRoot() method then also call that when it comes time to access the local /etc/shadow file.
+# Do a code review to check for cruft.
 
 # Error Modes to Cover:
 #   Bad connection:
@@ -46,6 +48,7 @@ import fcntl
 import subprocess
 import sys
 import datetime
+import syslog
 
 # Constants
 DEFAULT_REMOTE_BACKUP_DIR = '/mnt/pymigrate/backups'
@@ -57,6 +60,7 @@ EXIT_CODE_TOO_FEW_ARGUMENTS = 2
 EXIT_CODE_HELP_MESSAGE = 3
 EXIT_CODE_FOUND_UNCATEGORIZED_USERS = 4
 EXIT_CODE_UNABLE_TO_BACKUP = 5
+EXIT_CODE_INSTANCE_ALREADY_RUNNING = 6
 
 # Global variables
 lockFile = None  # File handle for locking out multiple running instances (fcntl requires this to be global).
@@ -73,14 +77,27 @@ class Account:
             self.homeDir, self.shell] = passwdEntry.split(':')
 
 
+# Log a message to syslog and print it to stdout unless in --quiet mode.
+def logMessage(priority, msg):
+    if priority == syslog.LOG_ERR:
+        msg = "ERROR: " + msg
+    if priority == syslog.LOG_WARNING:
+        msg = "WARNING: " + msg
+
+    syslog.syslog(priority, msg)
+
+    if not options['quiet']:
+        print msg
+
+
 # Attempt to open a local text file and convert to a list of lines.
 def textFileIntoLines(filePath):
     try:
         with open(filePath, 'r') as textFile:
             textLines = textFile.read().splitlines()
     except IOError as e:
-        print "ERROR: Unable to open local file."
-        print e
+        logMessage(syslog.LOG_ERR, "Unable to open local file" + filePath)
+        logMessage(syslog.LOG_ERR, str(e))
         exit(EXIT_CODE_FAILURE_TO_OPEN_LOCAL_FILE)
 
     return textLines
@@ -89,8 +106,8 @@ def textFileIntoLines(filePath):
 # Execute a console command and print results.
 def executeCommand(command):
     status, output = commands.getstatusoutput(command)
-    if output and not options['quiet']:
-        print output
+    if status != 0:
+        logMessage(syslog.LOG_WARNING, "Non-zero exit code on command: " + command + "\n  " + output)
     return status
 
 
@@ -103,8 +120,7 @@ def getUsers(target=None):
             passwdFile = open('/etc/passwd', 'r')
             shadowFile = open('/etc/shadow', 'r')
         except IOError as e:
-            print "ERROR: Unable to open local file."
-            print e
+            logMessage(syslog.LOG_ERR, "Unable to open local file.\n" + str(e))
             exit(EXIT_CODE_FAILURE_TO_OPEN_LOCAL_FILE)
     else:  # If a remote target was given then open remote files.
         passwdFile = subprocess.Popen(['ssh', target, 'cat', '/etc/passwd'], stdout=subprocess.PIPE).stdout
@@ -226,7 +242,7 @@ def processCommandLineOptions():
 
     # Process command-line options.
     argsConsumed = 0
-    for i in [1, len(sys.argv) - 1]:
+    for i in range(1, len(sys.argv) - 1):
         if sys.argv[i] == '--help':
             argsConsumed += 1
             printHelpMessage()
@@ -266,8 +282,8 @@ def lockExecution():
     try:
         fcntl.flock(lockFile, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except IOError:
-        print "ERROR: Another instance is already running."
-        sys.exit(1)
+        logMessage(syslog.LOG_ERR, "Another instance is already running.")
+        sys.exit(EXIT_CODE_INSTANCE_ALREADY_RUNNING)
 
 
 """
@@ -352,10 +368,10 @@ def main():
         timeStamp = datetime.datetime.now().strftime('%Y-%m-%d-%Hh-%Mm-%Ss')
         prefix = options['backupDir'] + '/' + 'backup_' + timeStamp
         if executeCommand('ssh -n ' + destAddress + ' cp /etc/passwd ' + prefix + '_passwd'):
-            print "ERROR: Unable to create remote backup of /etc/passwd file."
+            logMessage(syslog.LOG_ERR, "Unable to create remote backup of /etc/passwd file.")
             exit(EXIT_CODE_UNABLE_TO_BACKUP)
         if executeCommand('ssh -n ' + destAddress + ' cp /etc/shadow ' + prefix + '_shadow'):
-            print "ERROR: Unable to create remote backup of /etc/shadow file."
+            logMessage(syslog.LOG_ERR, "Unable to create remote backup of /etc/shadow file.")
             exit(EXIT_CODE_UNABLE_TO_BACKUP)
 
     # Migrate new users.
@@ -365,7 +381,7 @@ def main():
             print "Migrating new user: " + username
         result = addRemoteUser(destAddress, srcAccountDict[username])
         if result != 0:
-            print "Migration of " + username + " failed with useradd exit status " + str(result) + "."
+            # No need to log because the non-zero exit code triggers a log message by itself.
             migratingUsers.remove(username)
             failedUsers.append(username)
 
@@ -381,25 +397,16 @@ def main():
             print "Updating password for user: " + username
         updateRemoteUserPassword(destAddress, username, srcAccountDict[username].password)
 
-    # Give a fuller accounting of user migration results.
-    if options['verbose']:
-        print
-        print "Verbose Migration Description"
-        print "-----------------------------"
-        print "Migrated: " + usernameListToLimitedString(migratingUsers)
-        print "Deleted:  " + usernameListToLimitedString(doomedUsers)
-        print "Updated:  " + usernameListToLimitedString(updatingUsers)
-        print "Missing:  " + usernameListToLimitedString(missingUsers)
-        print "Failed:   " + usernameListToLimitedString(failedUsers)
-
-    # Give a one-line summary of the user migration results.
-    if not options['quiet'] :
-        print
-        print "Migration Summary:",
-        print str(len(migratingUsers)) + " migrated,",
-        print str(len(doomedUsers)) + " deleted,",
-        print str(len(updatingUsers)) + " updated,",
-        print str(len(missingUsers)) + " missing,",
-        print str(len(failedUsers)) + " failed migration."
+    if migratingUsers:
+        logMessage(syslog.LOG_INFO, "Migrated users: " + usernameListToLimitedString(migratingUsers))
+    if doomedUsers:
+        logMessage(syslog.LOG_INFO, "Deleted users: " + usernameListToLimitedString(doomedUsers))
+    if updatingUsers:
+        logMessage(syslog.LOG_INFO, "Updated users: " + usernameListToLimitedString(updatingUsers))
+    if not options['quiet'] and failedUsers:
+        # Non-zero exit code on a failed migration triggers a log message elsewhere, so just print.
+        print "Failed to migrate users: " + usernameListToLimitedString(failedUsers)
+    if not options['quiet']:
+        print "Couldn't find users: " + usernameListToLimitedString(missingUsers)
 
 main()
