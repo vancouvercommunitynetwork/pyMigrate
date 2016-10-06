@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 #
 # TO DO
-# Add a quiet-mode option that sends nothing to stdout.
+#
 # Add logging using Python's syslog library (or whatever it's called). Don't log results of simulation mode though.
-# Store backups of the destination /etc/passwd and /etc/shadow every time a change is made to them. Save these backups to a subfolder but add an option for redirecting backups to some other destination.
+# Store backups of the destination /etc/passwd and /etc/shadow every time a change is made to them. Save these
+#   backups to "remote:/mnt/pymigrate/backup" but provide an option to redirect it to a different remote folder.
 # Test as a frequent cronjob while messing around with users and see what happens. For example, if it's running in one console in quiet mode and you can see its output, then does it actually output anything while you're manipulating users.
 # Make it test the ssh connection and halt if unable to connect. You'll want something like:
 #   ssh -o BatchMode=yes root@192.168.20.45 exit
@@ -48,8 +49,10 @@ import commands
 import fcntl
 import subprocess
 import sys
+import datetime
 
 # Constants
+DEFAULT_REMOTE_BACKUP_DIR = '/mnt/pymigrate/backups'
 LOWEST_USER_ID, HIGHEST_USER_ID = 1001, 60000  # Inclusive range of effected users.
 MOST_USERNAMES_TO_LIST = 5  # No message should dump more than this many usernames.
 EXIT_CODE_SUCCESS = 0
@@ -57,7 +60,7 @@ EXIT_CODE_FAILURE_TO_OPEN_LOCAL_FILE = 1
 EXIT_CODE_TOO_FEW_ARGUMENTS = 2
 EXIT_CODE_HELP_MESSAGE = 3
 EXIT_CODE_FOUND_UNCATEGORIZED_USERS = 4
-EXIT_CODE_UNRECOGNIZED_OPTION = 5
+EXIT_CODE_UNABLE_TO_BACKUP = 5
 
 # Global variables
 lockFile = None  # File handle for locking out multiple running instances (fcntl requires this to be global).
@@ -88,7 +91,7 @@ def textFileIntoLines(filePath):
 
 
 # Execute a console command and print results.
-def executeCommandWithEcho(command):
+def executeCommand(command):
     status, output = commands.getstatusoutput(command)
     if output and not options['quiet']:
         print output
@@ -152,21 +155,21 @@ def addRemoteUser(target, account):
     cmd = "ssh -n " + target + " /usr/sbin/useradd -p '\"" + account.password + \
           "\"' -u " + account.uid + " -g " + account.gid + \
           " -d /home -M -s /usr/sbin/nologin -K MAIL_DIR=/dev/null " + account.username
-    return executeCommandWithEcho(cmd)
+    return executeCommand(cmd)
 
 
 # Delete a user account at a remote machine.
 def deleteRemoteUser(target, username):
     # Construct and execute command to remotely delete user.
     cmd = 'ssh -n ' + target + ' /usr/sbin/deluser -quiet ' + username
-    executeCommandWithEcho(cmd)
+    executeCommand(cmd)
 
 
 # Change a user password at a remote machine
 def updateRemoteUserPassword(target, username, newPassword):
     # Construct and execute command to remotely update user password
     cmd = "ssh -n " + target + " /usr/sbin/usermod -p '" + newPassword + "' " + username
-    executeCommandWithEcho(cmd)
+    executeCommand(cmd)
 
 
 # Turn a list of usernames into a string but limit the possible length of the string.
@@ -205,8 +208,10 @@ Example:
 """
 
 
-# Return a list of all command-line arguments that start with a dash.
+# Process the command-line arguments and return a count of how many were consumed.
 def processCommandLineOptions():
+    global options
+
     # Isolate argument strings.
     optionArguments = []
     for item in sys.argv[1:]:
@@ -218,28 +223,34 @@ def processCommandLineOptions():
         'unlistedGetDeleted': False,
         'verbose': False,
         'simulate': False,
-        'quiet': False
+        'quiet': False,
+        'backupDir': DEFAULT_REMOTE_BACKUP_DIR
     }
 
     # Process command-line options.
-    for option in optionArguments:
-        if option == '--help':
+    argsConsumed = 0
+    for i in [1, len(sys.argv) - 1]:
+        if sys.argv[i] == '--help':
+            argsConsumed += 1
             printHelpMessage()
             exit(EXIT_CODE_HELP_MESSAGE)
-        elif option == '-u' or option == '--unlisted-get-deleted':
+        elif sys.argv[i] == '-u' or sys.argv[i] == '--unlisted-get-deleted':
+            argsConsumed += 1
             options['unlistedGetDeleted'] = True
-        elif option == '-v' or option == '--verbose':
+        elif sys.argv[i] == '-v' or sys.argv[i] == '--verbose':
+            argsConsumed += 1
             options['verbose'] = True
-        elif option == '-s' or option == '--simulate':
+        elif sys.argv[i] == '-s' or sys.argv[i] == '--simulate':
+            argsConsumed += 1
             options['simulate'] = True
-        elif option == '-q' or option == '--quiet':
+        elif sys.argv[i] == '-q' or sys.argv[i] == '--quiet':
+            argsConsumed += 1
             options['quiet'] = True
-        else:
-            print "ERROR: Unrecognized option: " + option
-            print "To see command-line options use --help"
-            exit(EXIT_CODE_UNRECOGNIZED_OPTION)
+        elif sys.argv[i] == '-b' or sys.argv[i] == '--backupDir':
+            argsConsumed += 2
+            options['backupDir'] = sys.argv[i + 1]
 
-    return len(optionArguments), options
+    return argsConsumed
 
 
 # Create an ordered set of unique elements (the Python "sets" module is deprecated).
@@ -270,8 +281,10 @@ def lockExecution():
 
 
 def main():
-    # Get command line options.
-    optionCount, options = processCommandLineOptions()
+    global options
+
+    # Count and process the command-line options.
+    optionCount = processCommandLineOptions()
 
     # Check that the user has provided the minimum number of arguments.
     if len(sys.argv) - optionCount < 3:
@@ -335,6 +348,19 @@ def main():
         #########   PERFORM ACTIONS ON USERS     ##########################
         ###################################################################
     """
+    # If changes will be made then perform a backup of the user files.
+    if True or migratingUsers or doomedUsers or updatingUsers: #DEBUG True
+        # Create the backups directory if necessary.
+        executeCommand('ssh -n ' + destAddress + ' mkdir -p ' + options['backupDir'])
+        timeStamp = datetime.datetime.now().strftime('%Y-%m-%d-%Hh-%Mm-%Ss')
+        prefix = options['backupDir'] + '/' + 'backup_' + timeStamp
+        if executeCommand('ssh -n ' + destAddress + ' cp /etc/passwd ' + prefix + '_passwd'):
+            print "ERROR: Unable to create remote backup of /etc/passwd file."
+            exit(EXIT_CODE_UNABLE_TO_BACKUP)
+        if executeCommand('ssh -n ' + destAddress + ' cp /etc/shadow ' + prefix + '_shadow'):
+            print "ERROR: Unable to create remote backup of /etc/shadow file."
+            exit(EXIT_CODE_UNABLE_TO_BACKUP)
+
     # Migrate new users.
     failedUsers = []
     for username in migratingUsers:
