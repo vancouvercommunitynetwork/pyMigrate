@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 #
 # TO DO
+# IMPORTANT: Is there a bug where changing a user's password with the passwd command (possibly after usermod -p)
+#   causes endless update attempts for that user? Because the password is now encrypted maybe?
 # Add logging using Python's syslog library (or whatever it's called). Don't log results of simulation mode though.
 # Test all the error modes and look at their stdout and syslog outputs.
 # Test as a frequent cronjob while messing around with users and see what happens. For example, if it's running in one
@@ -12,6 +14,7 @@
 # Capture the error that comes from lacking root authority to create the lock file. If you put it into some kind of
 #   checkRoot() method then also call that when it comes time to access the local /etc/shadow file.
 # Do a code review to check for cruft.
+
 
 # Error Modes to Cover:
 #   Bad connection:
