@@ -1,16 +1,15 @@
 #!/usr/bin/env python
 #
 # TO DO
-#
 # Add logging using Python's syslog library (or whatever it's called). Don't log results of simulation mode though.
-# Store backups of the destination /etc/passwd and /etc/shadow every time a change is made to them. Save these
-#   backups to "remote:/mnt/pymigrate/backup" but provide an option to redirect it to a different remote folder.
-# Test as a frequent cronjob while messing around with users and see what happens. For example, if it's running in one console in quiet mode and you can see its output, then does it actually output anything while you're manipulating users.
+# Test as a frequent cronjob while messing around with users and see what happens. For example, if it's running in one
+#   console in quiet mode then does it actually output anything while you're manipulating users in another console?
 # Make it test the ssh connection and halt if unable to connect. You'll want something like:
 #   ssh -o BatchMode=yes root@192.168.20.45 exit
 #   but you'll also need to add timeout functionality so it won't sit forever if the destination doesn't exist.
-# Change the program to prepend root@ to the destination address if no user is given (then update the helper scripts).
-# Capture the error that comes from lacking root authority to create the lock file. If you put it into some kind of checkRoot() method then also call that when it comes time to access the local /etc/shadow file.
+# Find some cleaner way of consuming command-line arguments.
+# Capture the error that comes from lacking root authority to create the lock file. If you put it into some kind of
+#   checkRoot() method then also call that when it comes time to access the local /etc/shadow file.
 
 # Error Modes to Cover:
 #   Bad connection:
@@ -202,6 +201,7 @@ Transfer/update user accounts specified in USER LIST FILE to the DESTINATION com
   -v, --verbose               provide more information about actions taken
   -s, --simulate              simulate running the program, but perform no actions
   -q, --quiet                 run program without output to console
+  -b, --backup-dir [PATH]     set the remote directory to store backups of /etc/shadow and /etc/passwd, by default it is /mnt/pymigrate/backups
 
 Example:
     ./migrate.py root@192.168.1.257 bunch_of_users.txt
@@ -246,7 +246,7 @@ def processCommandLineOptions():
         elif sys.argv[i] == '-q' or sys.argv[i] == '--quiet':
             argsConsumed += 1
             options['quiet'] = True
-        elif sys.argv[i] == '-b' or sys.argv[i] == '--backupDir':
+        elif sys.argv[i] == '-b' or sys.argv[i] == '--backup-dir':
             argsConsumed += 2
             options['backupDir'] = sys.argv[i + 1]
 
