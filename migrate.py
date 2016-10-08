@@ -3,7 +3,6 @@
 # TO DO
 # IMPORTANT: Is there a bug where changing a user's password with the passwd command (possibly after usermod -p)
 #   causes endless update attempts for that user? Because the password is now encrypted maybe?
-# Add logging using Python's syslog library (or whatever it's called). Don't log results of simulation mode though.
 # Test all the error modes and look at their stdout and syslog outputs.
 # Test as a frequent cronjob while messing around with users and see what happens. For example, if it's running in one
 #   console in quiet mode then does it actually output anything while you're manipulating users in another console?
