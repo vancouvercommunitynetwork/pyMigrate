@@ -3,6 +3,15 @@
 # TO DO
 # IMPORTANT: Is there a bug where changing a user's password with the passwd command (possibly after usermod -p)
 #   causes endless update attempts for that user? Because the password is now encrypted maybe?
+# Replace all logMessage calls with logExit to prevent further syslog flooding.
+# Delete logMessage after swapping it out everywhere with logExit. This will guarantee it never gets called and
+#   eliminate cruft.
+# Replace all print statement with printQuietly to ensure nothing undesired ever goes to the console.
+# Re-check all the failure modes to avoid sending multiple lines to syslog for any given problem. Cron will call this
+#   script repeatedly and if it's failing with the same problem then it should be producing the same line and not
+#   multiple lines that will flood syslog. For example, losing the connection to the destination should be a one-line
+#   error.
+#   multiple copies of a line unless it's the same line and not the same series of lines.
 # Test all the error modes and look at their stdout and syslog outputs.
 # Test as a frequent cronjob while messing around with users and see what happens. For example, if it's running in one
 #   console in quiet mode then does it actually output anything while you're manipulating users in another console?
@@ -92,6 +101,23 @@ def logMessage(priority, msg):
 
     if not options['quiet']:
         print msg
+
+
+# Log a message to syslog and quit. Exiting with a single message ensures that the program will never flood the syslog
+# with multi-line messages that syslog can't trim to 'blah blah blah' happened 8000 times.
+def logExit(priority, msg, exitCode):
+    if priority == syslog.LOG_ERR:
+        msg = "ERROR: " + msg
+    if priority == syslog.LOG_WARNING:
+        msg = "WARNING: " + msg
+
+    if not options['simulate']:
+        syslog.syslog(priority, msg)
+
+    if not options['quiet']:
+        print msg
+
+    exit(exitCode)
 
 
 # Attempt to open a local text file and convert to a list of lines.
@@ -338,6 +364,11 @@ def main():
     # Update users that have changed their password.
     updatingUsers = [u for u in srcUsers if u in destUsers and u not in doomedUsers and
                      srcAccountDict[u].password != destAccountDict[u].password]
+
+    #DEBUG
+    for user in updatingUsers:
+        print "DEBUG: " + user + " was " + srcAccountDict[u].password + " now " + destAccountDict[u].password
+
 
     # Determine which listed users are missing, if any.
     missingUsers = [u for u in listedUsers if u not in srcUsers and u not in destUsers]
