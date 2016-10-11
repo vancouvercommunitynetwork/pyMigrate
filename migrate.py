@@ -96,7 +96,7 @@ class Account:
 # conditions only as it may otherwise flood syslog. If the message might be recurring then either print it to
 # console or send it to logExit().
 def logMessage(priority, msg):
-    assert priority == syslog.LOG_INFO
+    assert priority == syslog.LOG_INFO or priority == syslog.LOG_WARNING
     if not options['simulate']:
         syslog.syslog(priority, msg)
 
@@ -427,8 +427,12 @@ def main():
         logMessage(syslog.LOG_INFO, "Deleted users: " + usernameListToLimitedString(doomedUsers))
     if updatingUsers:
         logMessage(syslog.LOG_INFO, "Updated users: " + usernameListToLimitedString(updatingUsers))
-    if not options['quiet'] and failedUsers:
-        # Non-zero exit code on a failed migration triggers a log message elsewhere, so just print.
+    if failedUsers:
+        logMessage(syslog.LOG_WARNING, "Failed migrations: " +
+                   usernameListToLimitedString(failedUsers) + "\nGroup ID might not be present " +
+                   "at destination. Turn off \"--quiet\" for more information.")
+    if not options['quiet']:
+        # Non-zero exit code on a failed migration triggers an explanatory message elsewhere.
         print "Failed to migrate users: " + usernameListToLimitedString(failedUsers)
     if not options['quiet'] and missingUsers:
         print "Couldn't find users: " + usernameListToLimitedString(missingUsers)
