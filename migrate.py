@@ -4,7 +4,6 @@
 # Check for local root privilege first. Right now it fails at the lock attempt.
 # Alphabetize the function definitions to make them easier to navigate.
 # Add explanations to each of the exit codes.
-# Replace all print statement with printQuietly to ensure nothing undesired ever goes to the console.
 # Re-check all the failure modes to avoid sending multiple lines to syslog for any given problem. Cron will call this
 #   script repeatedly and if it's failing with the same problem then it should be producing the same line and not
 #   multiple lines that will flood syslog. For example, losing the connection to the destination should be a one-line
@@ -100,6 +99,11 @@ def logMessage(priority, msg):
     if not options['simulate']:
         syslog.syslog(priority, msg)
 
+    loudPrint(msg)
+
+
+# Print a message to console if the --quiet option is turned off.
+def loudPrint(msg):
     if not options['quiet']:
         print msg
 
@@ -110,8 +114,7 @@ def logExit(priority, msg, exitCode):
     if not options['simulate']:
         syslog.syslog(priority, "Exiting because: " + msg)
 
-    if not options['quiet']:
-        print msg
+    loudPrint(msg)
 
     exit(exitCode)
 
@@ -131,8 +134,8 @@ def textFileIntoLines(filePath):
 # Execute a console command and print results.
 def executeCommand(command):
     status, output = commands.getstatusoutput(command)
-    if status != 0 and not options['quiet']:
-        print "WARNING: Non-zero exit code on command: " + command + "\n  " + output
+    if status != 0:
+        loudPrint "WARNING: Non-zero exit code on command: " + command + "\n  " + output
     return status
 
 
@@ -431,10 +434,9 @@ def main():
         logMessage(syslog.LOG_WARNING, "Failed migrations: " +
                    usernameListToLimitedString(failedUsers) + "\nGroup ID might not be present " +
                    "at destination. Turn off \"--quiet\" for more information.")
-    if not options['quiet']:
         # Non-zero exit code on a failed migration triggers an explanatory message elsewhere.
-        print "Failed to migrate users: " + usernameListToLimitedString(failedUsers)
-    if not options['quiet'] and missingUsers:
-        print "Couldn't find users: " + usernameListToLimitedString(missingUsers)
+        loudPrint( "Failed to migrate users: " + usernameListToLimitedString(failedUsers))
+    if missingUsers:
+        loudPrint("Couldn't find users: " + usernameListToLimitedString(missingUsers))
 
 main()
