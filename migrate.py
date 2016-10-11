@@ -1,7 +1,6 @@
 #!/usr/bin/env python
-#
+
 # TO DO
-# Alphabetize the function definitions to make them easier to navigate.
 # Make it test the ssh connection and halt if unable to connect. You'll want something like:
 #   ssh -o BatchMode=yes root@192.168.20.45 exit
 #   but you'll also need to add timeout functionality so it won't sit forever if the destination doesn't exist.
