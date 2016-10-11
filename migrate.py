@@ -66,14 +66,15 @@ import syslog
 DEFAULT_REMOTE_BACKUP_DIR = '/mnt/pymigrate/backups'
 LOWEST_USER_ID, HIGHEST_USER_ID = 1001, 60000  # Inclusive range of effected users.
 MOST_USERNAMES_TO_LIST = 5  # No message should dump more than this many usernames.
-EXIT_CODE_SUCCESS = 0
-EXIT_CODE_FAILURE_TO_OPEN_LOCAL_FILE = 1
-EXIT_CODE_TOO_FEW_ARGUMENTS = 2
-EXIT_CODE_HELP_MESSAGE = 3
-EXIT_CODE_FOUND_UNCATEGORIZED_USERS = 4
-EXIT_CODE_UNABLE_TO_BACKUP = 5
-EXIT_CODE_INSTANCE_ALREADY_RUNNING = 6
-EXIT_CODE_BAD_BASH_EXIT = 7  # A shell command returned a non-zero exit code.
+
+# Console return values
+EXIT_CODE_SUCCESS = 0  # Program ran without problems.
+EXIT_CODE_FAILURE_TO_OPEN_LOCAL_FILE = 1  # Program failed to open a local file.
+EXIT_CODE_TOO_FEW_ARGUMENTS = 2  # Program was not given the minimum number of arguments.
+EXIT_CODE_HELP_MESSAGE = 3  # Program showed help and quit without taking any actions.
+EXIT_CODE_FOUND_UNCATEGORIZED_USERS = 4  # Program choked on a user it couldn't categorize.
+EXIT_CODE_UNABLE_TO_BACKUP = 5  # Program failed to create backups of passwd and shadow.
+EXIT_CODE_INSTANCE_ALREADY_RUNNING = 6  # Program quit because multiple instances aren't allowed.
 
 # Global variables
 lockFile = None  # File handle for locking out multiple running instances (fcntl requires this to be global).
@@ -135,7 +136,7 @@ def textFileIntoLines(filePath):
 def executeCommand(command):
     status, output = commands.getstatusoutput(command)
     if status != 0:
-        loudPrint "WARNING: Non-zero exit code on command: " + command + "\n  " + output
+        loudPrint("WARNING: Non-zero exit code on command: " + command + "\n  " + output)
     return status
 
 
