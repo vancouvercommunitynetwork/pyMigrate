@@ -1,8 +1,7 @@
 #!/usr/bin/env python
 #
 # TO DO
-# IMPORTANT: Is there a bug where changing a user's password with the passwd command (possibly after usermod -p)
-#   causes endless update attempts for that user? Because the password is now encrypted maybe?
+# Alphabetize the function definitions to make them easier to navigate.
 # Add explanations to each of the exit codes.
 # Replace all print statement with printQuietly to ensure nothing undesired ever goes to the console.
 # Re-check all the failure modes to avoid sending multiple lines to syslog for any given problem. Cron will call this
@@ -50,6 +49,10 @@
 #   13m17s to migrate 1000 users (avg 0.8secs/user).
 #   0.6 secs to process 1000 users when no actions were necessary.
 #   21m27s to delete 1000 users (avg 1.3secs/user).
+
+# This is a program for migrating Linux user accounts from one machine to another. To
+# improve portability this program is restricted to one file and uses only the common
+# pre-installed Python libraries rather than libraries such as Paramiko or Fabric.
 
 
 import commands
@@ -201,7 +204,7 @@ def deleteRemoteUser(target, username):
 # Change a user password at a remote machine
 def updateRemoteUserPassword(target, username, newPassword):
     # Construct and execute command to remotely update user password
-    cmd = "ssh -n " + target + " /usr/sbin/usermod -p '" + newPassword + "' " + username
+    cmd = "ssh -n " + target + " /usr/sbin/usermod -p \\''" + newPassword + "'\\' " + username
     executeCommand(cmd)
 
 
@@ -354,11 +357,6 @@ def main():
     # Update users that have changed their password.
     updatingUsers = [u for u in srcUsers if u in destUsers and u not in doomedUsers and
                      srcAccountDict[u].password != destAccountDict[u].password]
-
-    #DEBUG
-    for user in updatingUsers:
-        print "DEBUG: " + user + " was \n" + srcAccountDict[u].password + "Is now \n" + destAccountDict[u].password
-
 
     # Determine which listed users are missing, if any.
     missingUsers = [u for u in listedUsers if u not in srcUsers and u not in destUsers]
