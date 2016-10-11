@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
 # A script for generating a set of users that will test all the use cases of the program.
-#target="root@192.168.20.45"
 dummies="list_of_users_for_testing.txt"
 
 target=$1

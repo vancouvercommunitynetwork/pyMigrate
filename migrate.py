@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 #
 # TO DO
+# Check for local root privilege first. Right now it fails at the lock attempt.
 # Alphabetize the function definitions to make them easier to navigate.
 # Add explanations to each of the exit codes.
 # Replace all print statement with printQuietly to ensure nothing undesired ever goes to the console.
@@ -188,8 +189,8 @@ def getRemoteUsers(target):
 #       shell is forced to be /usr/sbin/nologin
 def addRemoteUser(target, account):
     # Construct and execute command to remotely add user.
-    cmd = "ssh -n " + target + " /usr/sbin/useradd -p '\"" + account.password + \
-          "\"' -u " + account.uid + " -g " + account.gid + \
+    cmd = "ssh -n " + target + " /usr/sbin/useradd -p \\''" + account.password + \
+          "'\\' -u " + account.uid + " -g " + account.gid + \
           " -d /home -M -s /usr/sbin/nologin -K MAIL_DIR=/dev/null " + account.username
     return executeCommand(cmd)
 
@@ -404,7 +405,7 @@ def main():
             print "Migrating new user: " + username
         result = addRemoteUser(destAddress, srcAccountDict[username])
         if result != 0:
-            # No need to log because the non-zero exit code triggers a log message by itself.
+            # Track all users that failed migration.
             migratingUsers.remove(username)
             failedUsers.append(username)
 
