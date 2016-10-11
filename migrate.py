@@ -2,7 +2,6 @@
 #
 # TO DO
 # Alphabetize the function definitions to make them easier to navigate.
-# Add explanations to each of the exit codes.
 # Make it test the ssh connection and halt if unable to connect. You'll want something like:
 #   ssh -o BatchMode=yes root@192.168.20.45 exit
 #   but you'll also need to add timeout functionality so it won't sit forever if the destination doesn't exist.
@@ -81,44 +80,48 @@ class Account:
             self.homeDir, self.shell] = passwdEntry.split(':')
 
 
-# Log a message to syslog and print it to stdout unless in --quiet mode. This should be used for transient
-# conditions only as it may otherwise flood syslog. If the message might be recurring then either print it to
-# console or send it to logExit().
-def logMessage(priority, msg):
-    assert priority == syslog.LOG_INFO or priority == syslog.LOG_WARNING
-    if not options['simulate']:
-        syslog.syslog(priority, msg)
-
-    loudPrint(msg)
-
-
-# Print a message to console if the --quiet option is turned off.
-def loudPrint(msg):
-    if not options['quiet']:
-        print msg
+# Create a new user account at a remote machine.
+# NOTE: User fields are copied as is with the exceptions:
+#       home directory is forced to be /home
+#       shell is forced to be /usr/sbin/nologin
+def addRemoteUser(target, account):
+    # Construct and execute command to remotely add user.
+    cmd = "ssh -n " + target + " /usr/sbin/useradd -p \\''" + account.password + \
+          "'\\' -u " + account.uid + " -g " + account.gid + \
+          " -d /home -M -s /usr/sbin/nologin -K MAIL_DIR=/dev/null " + account.username
+    return executeCommand(cmd)
 
 
-# Log a message to syslog and quit. Exiting with a single message ensures that the program will never flood the syslog
-# with multi-line messages that syslog can't trim to 'blah blah blah' happened 8000 times.
-def logExit(priority, msg, exitCode):
-    if not options['simulate']:
-        syslog.syslog(priority, "Exiting because: " + msg)
+# Open and close the lock file to test for root privilege. This is more portable than
+# testing if the user ID is 0.
+def checkForRootPrivilege():
+    global LOCK_FILE
 
-    loudPrint(msg)
-
-    exit(exitCode)
-
-
-# Attempt to open a local text file and convert to a list of lines.
-def textFileIntoLines(filePath):
     try:
-        with open(filePath, 'r') as textFile:
-            textLines = textFile.read().splitlines()
+        testFile = open(LOCK_FILE, 'w')
+        testFile.close()
     except IOError as e:
-        logExit(syslog.LOG_ERR, "Unable to open local file" + filePath +
-                ". " + str(e), EXIT_CODE_FAILURE_TO_OPEN_LOCAL_FILE)
+        if e[0] == 13:
+            logExit(syslog.LOG_ERR, "Program must be run with root authority.", \
+                    EXIT_CODE_NOT_ROOT)
+        else:
+            logExit(syslog.LOG_ERR, "Creating " + LOCK_FILE + " triggered:\n" + str(e))
 
-    return textLines
+
+# Create an ordered set of unique elements (the Python "sets" module is deprecated).
+def createUnionOfLists(listOfLists):
+    itemDictionary = {}
+    for eachList in listOfLists:
+        for item in eachList:
+            itemDictionary[item] = None  # Create dictionary key (value is unimportant)
+    return itemDictionary.keys()
+
+
+# Delete a user account at a remote machine.
+def deleteRemoteUser(target, username):
+    # Construct and execute command to remotely delete user.
+    cmd = 'ssh -n ' + target + ' /usr/sbin/deluser -quiet ' + username
+    executeCommand(cmd)
 
 
 # Execute a console command and print results.
@@ -127,6 +130,16 @@ def executeCommand(command):
     if status != 0:
         loudPrint("WARNING: Non-zero exit code on command: " + command + "\n  " + output)
     return status
+
+
+# Get a list of usernames and a dictionary of user data from local machine.
+def getLocalUsers():
+    return getUsers()
+
+
+# Get a list of usernames and a dictionary of user data from remote machine.
+def getRemoteUsers(target):
+    return getUsers(target)
 
 
 # Read /etc/passwd and /etc/shadow files to produce a list of the non-system usernames
@@ -166,59 +179,47 @@ def getUsers(target=None):
     return users, userAccountDict
 
 
-# Get a list of usernames and a dictionary of user data from local machine.
-def getLocalUsers():
-    return getUsers()
+# Lock out execution of multiple instances.
+def lockExecution():
+    global lockFile, LOCK_FILE
+
+    try:
+        lockFile = open(LOCK_FILE, 'w')
+        fcntl.flock(lockFile, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except IOError as e:
+        if e[0] == 11:
+            logExit(syslog.LOG_ERR, "Another instance is already running.", \
+                    EXIT_CODE_INSTANCE_ALREADY_RUNNING)
+        else:
+            logExit(syslog.LOG_ERR, "Locking " + LOCK_FILE + " triggered:\n" + str(e))
 
 
-# Get a list of usernames and a dictionary of user data from remote machine.
-def getRemoteUsers(target):
-    return getUsers(target)
+# Log a message to syslog and quit. Exiting with a single message ensures that the program will never flood the syslog
+# with multi-line messages that syslog can't trim to 'blah blah blah' happened 8000 times.
+def logExit(priority, msg, exitCode):
+    if not options['simulate']:
+        syslog.syslog(priority, "Exiting because: " + msg)
+
+    loudPrint(msg)
+
+    exit(exitCode)
 
 
-# Create a new user account at a remote machine.
-# NOTE: User fields are copied as is with the exceptions:
-#       home directory is forced to be /home
-#       shell is forced to be /usr/sbin/nologin
-def addRemoteUser(target, account):
-    # Construct and execute command to remotely add user.
-    cmd = "ssh -n " + target + " /usr/sbin/useradd -p \\''" + account.password + \
-          "'\\' -u " + account.uid + " -g " + account.gid + \
-          " -d /home -M -s /usr/sbin/nologin -K MAIL_DIR=/dev/null " + account.username
-    return executeCommand(cmd)
+# Log a message to syslog and print it to stdout unless in --quiet mode. This should be used for transient
+# conditions only as it may otherwise flood syslog. If the message might be recurring then either print it to
+# console or send it to logExit().
+def logMessage(priority, msg):
+    assert priority == syslog.LOG_INFO or priority == syslog.LOG_WARNING
+    if not options['simulate']:
+        syslog.syslog(priority, msg)
+
+    loudPrint(msg)
 
 
-# Delete a user account at a remote machine.
-def deleteRemoteUser(target, username):
-    # Construct and execute command to remotely delete user.
-    cmd = 'ssh -n ' + target + ' /usr/sbin/deluser -quiet ' + username
-    executeCommand(cmd)
-
-
-# Change a user password at a remote machine
-def updateRemoteUserPassword(target, username, newPassword):
-    # Construct and execute command to remotely update user password
-    cmd = "ssh -n " + target + " /usr/sbin/usermod -p \\''" + newPassword + "'\\' " + username
-    executeCommand(cmd)
-
-
-# Turn a list of usernames into a string but limit the possible length of the string.
-# Example: ["user1", "user2", "user3", "user4", "user5", "user6", "user7"]
-# Becomes: "user1 user2 user3 user4 user5 ...and 2 others."
-def usernameListToLimitedString(userList):
-    global MOST_USERNAMES_TO_LIST
-    returnString = ""
-    # If there aren't too many usernames then list them all.
-    if len(userList) <= MOST_USERNAMES_TO_LIST:
-        for username in userList:
-            returnString += username + ' '
-    # If there's lots of usernames then just list the first few.
-    else:
-        for username in userList[:MOST_USERNAMES_TO_LIST]:
-            returnString += username + ' '
-        returnString += "...and " + \
-            str(len(userList) - MOST_USERNAMES_TO_LIST) + " others."
-    return returnString
+# Print a message to console if the --quiet option is turned off.
+def loudPrint(msg):
+    if not options['quiet']:
+        print msg
 
 
 def printHelpMessage():
@@ -284,43 +285,42 @@ def processCommandLineOptions():
     return argsConsumed
 
 
-# Create an ordered set of unique elements (the Python "sets" module is deprecated).
-def createUnionOfLists(listOfLists):
-    itemDictionary = {}
-    for eachList in listOfLists:
-        for item in eachList:
-            itemDictionary[item] = None  # Create dictionary key (value is unimportant)
-    return itemDictionary.keys()
-
-
-# Lock out execution of multiple instances.
-def lockExecution():
-    global lockFile, LOCK_FILE
-
+# Attempt to open a local text file and convert to a list of lines.
+def textFileIntoLines(filePath):
     try:
-        lockFile = open(LOCK_FILE, 'w')
-        fcntl.flock(lockFile, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        with open(filePath, 'r') as textFile:
+            textLines = textFile.read().splitlines()
     except IOError as e:
-        if e[0] == 11:
-            logExit(syslog.LOG_ERR, "Another instance is already running.", \
-                    EXIT_CODE_INSTANCE_ALREADY_RUNNING)
-        else:
-            logExit(syslog.LOG_ERR, "Locking " + LOCK_FILE + " triggered:\n" + str(e))
+        logExit(syslog.LOG_ERR, "Unable to open local file" + filePath +
+                ". " + str(e), EXIT_CODE_FAILURE_TO_OPEN_LOCAL_FILE)
+
+    return textLines
 
 
-# Open and close the lock file as a high-portability test for root privilege.
-def checkForRootPrivilege():
-    global LOCK_FILE
+# Change a user password at a remote machine
+def updateRemoteUserPassword(target, username, newPassword):
+    # Construct and execute command to remotely update user password
+    cmd = "ssh -n " + target + " /usr/sbin/usermod -p \\''" + newPassword + "'\\' " + username
+    executeCommand(cmd)
 
-    try:
-        testFile = open(LOCK_FILE, 'w')
-        testFile.close()
-    except IOError as e:
-        if e[0] == 13:
-            logExit(syslog.LOG_ERR, "Program must be run with root authority.", \
-                    EXIT_CODE_NOT_ROOT)
-        else:
-            logExit(syslog.LOG_ERR, "Creating " + LOCK_FILE + " triggered:\n" + str(e))
+
+# Turn a list of usernames into a string but limit the possible length of the string.
+# Example: ["user1", "user2", "user3", "user4", "user5", "user6", "user7"]
+# Becomes: "user1 user2 user3 user4 user5 ...and 2 others."
+def usernameListToLimitedString(userList):
+    global MOST_USERNAMES_TO_LIST
+    returnString = ""
+    # If there aren't too many usernames then list them all.
+    if len(userList) <= MOST_USERNAMES_TO_LIST:
+        for username in userList:
+            returnString += username + ' '
+    # If there's lots of usernames then just list the first few.
+    else:
+        for username in userList[:MOST_USERNAMES_TO_LIST]:
+            returnString += username + ' '
+        returnString += "...and " + \
+            str(len(userList) - MOST_USERNAMES_TO_LIST) + " others."
+    return returnString
 
 
 """
