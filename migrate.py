@@ -357,7 +357,7 @@ def main():
 
     #DEBUG
     for user in updatingUsers:
-        print "DEBUG: " + user + " was " + srcAccountDict[u].password + " now " + destAccountDict[u].password
+        print "DEBUG: " + user + " was \n" + srcAccountDict[u].password + "Is now \n" + destAccountDict[u].password
 
 
     # Determine which listed users are missing, if any.
@@ -431,7 +431,7 @@ def main():
     if not options['quiet'] and failedUsers:
         # Non-zero exit code on a failed migration triggers a log message elsewhere, so just print.
         print "Failed to migrate users: " + usernameListToLimitedString(failedUsers)
-    if not options['quiet']:
+    if not options['quiet'] and missingUsers:
         print "Couldn't find users: " + usernameListToLimitedString(missingUsers)
 
 main()
