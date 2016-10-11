@@ -1,23 +1,12 @@
 #!/usr/bin/env python
 #
 # TO DO
-# Check for local root privilege first. Right now it fails at the lock attempt.
 # Alphabetize the function definitions to make them easier to navigate.
 # Add explanations to each of the exit codes.
-# Re-check all the failure modes to avoid sending multiple lines to syslog for any given problem. Cron will call this
-#   script repeatedly and if it's failing with the same problem then it should be producing the same line and not
-#   multiple lines that will flood syslog. For example, losing the connection to the destination should be a one-line
-#   error.
-#   multiple copies of a line unless it's the same line and not the same series of lines.
-# Test all the error modes and look at their stdout and syslog outputs.
-# Test as a frequent cronjob while messing around with users and see what happens. For example, if it's running in one
-#   console in quiet mode then does it actually output anything while you're manipulating users in another console?
 # Make it test the ssh connection and halt if unable to connect. You'll want something like:
 #   ssh -o BatchMode=yes root@192.168.20.45 exit
 #   but you'll also need to add timeout functionality so it won't sit forever if the destination doesn't exist.
 # Find some cleaner way of consuming command-line arguments.
-# Capture the error that comes from lacking root authority to create the lock file. If you put it into some kind of
-#   checkRoot() method then also call that when it comes time to access the local /etc/shadow file.
 # Do a code review to check for cruft.
 
 
@@ -27,8 +16,6 @@
 #      No route to host: a remote machine can't be found on the network.
 #      No SSH pre-authorization for remote machine.
 #      SSH pre-authorization for remote machine exists but lacks root privilege.
-#   Insufficient local privilege. No root access on local machine.
-#   Input file listing users cannot be opened (most likely because it doesn't exist).
 
 # Source Code Terminology
 #   Entry: A line from /etc/passwd or /etc/shadow containing. These contain fields separated by colons.
@@ -64,6 +51,7 @@ import syslog
 
 # Constants
 DEFAULT_REMOTE_BACKUP_DIR = '/mnt/pymigrate/backups'
+LOCK_FILE = "/var/run/vcn_user_data_migration.lck"
 LOWEST_USER_ID, HIGHEST_USER_ID = 1001, 60000  # Inclusive range of effected users.
 MOST_USERNAMES_TO_LIST = 5  # No message should dump more than this many usernames.
 
@@ -75,6 +63,7 @@ EXIT_CODE_HELP_MESSAGE = 3  # Program showed help and quit without taking any ac
 EXIT_CODE_FOUND_UNCATEGORIZED_USERS = 4  # Program choked on a user it couldn't categorize.
 EXIT_CODE_UNABLE_TO_BACKUP = 5  # Program failed to create backups of passwd and shadow.
 EXIT_CODE_INSTANCE_ALREADY_RUNNING = 6  # Program quit because multiple instances aren't allowed.
+EXIT_CODE_NOT_ROOT = 7  # Program must be run with root authority.
 
 # Global variables
 lockFile = None  # File handle for locking out multiple running instances (fcntl requires this to be global).
@@ -304,14 +293,34 @@ def createUnionOfLists(listOfLists):
     return itemDictionary.keys()
 
 
+# Lock out execution of multiple instances.
 def lockExecution():
-    global lockFile
-    LOCK_FILE = "/var/run/vcn_user_data_migration.lck"
-    lockFile = open(LOCK_FILE, 'w')
+    global lockFile, LOCK_FILE
+
     try:
+        lockFile = open(LOCK_FILE, 'w')
         fcntl.flock(lockFile, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except IOError:
-        logExit(syslog.LOG_ERR, "Another instance is already running.", EXIT_CODE_INSTANCE_ALREADY_RUNNING)
+    except IOError as e:
+        if e[0] == 11:
+            logExit(syslog.LOG_ERR, "Another instance is already running.", \
+                    EXIT_CODE_INSTANCE_ALREADY_RUNNING)
+        else:
+            logExit(syslog.LOG_ERR, "Locking " + LOCK_FILE + " triggered:\n" + str(e))
+
+
+# Open and close the lock file as a high-portability test for root privilege.
+def checkForRootPrivilege():
+    global LOCK_FILE
+
+    try:
+        testFile = open(LOCK_FILE, 'w')
+        testFile.close()
+    except IOError as e:
+        if e[0] == 13:
+            logExit(syslog.LOG_ERR, "Program must be run with root authority.", \
+                    EXIT_CODE_NOT_ROOT)
+        else:
+            logExit(syslog.LOG_ERR, "Creating " + LOCK_FILE + " triggered:\n" + str(e))
 
 
 """
@@ -332,7 +341,10 @@ def main():
         printHelpMessage()
         exit(EXIT_CODE_TOO_FEW_ARGUMENTS)
 
-    # Prevent another instance of the program from running simultaneously.
+    # Test that program is being run by a super user.
+    checkForRootPrivilege()
+
+    # Prevent two instances of the program from running simultaneously.
     lockExecution()
 
     # Take destination and migrant list file from last two command-line arguments.
