@@ -3,9 +3,7 @@
 # TO DO
 # IMPORTANT: Is there a bug where changing a user's password with the passwd command (possibly after usermod -p)
 #   causes endless update attempts for that user? Because the password is now encrypted maybe?
-# Replace all logMessage calls with logExit to prevent further syslog flooding.
-# Delete logMessage after swapping it out everywhere with logExit. This will guarantee it never gets called and
-#   eliminate cruft.
+# Add explanations to each of the exit codes.
 # Replace all print statement with printQuietly to ensure nothing undesired ever goes to the console.
 # Re-check all the failure modes to avoid sending multiple lines to syslog for any given problem. Cron will call this
 #   script repeatedly and if it's failing with the same problem then it should be producing the same line and not
@@ -72,6 +70,7 @@ EXIT_CODE_HELP_MESSAGE = 3
 EXIT_CODE_FOUND_UNCATEGORIZED_USERS = 4
 EXIT_CODE_UNABLE_TO_BACKUP = 5
 EXIT_CODE_INSTANCE_ALREADY_RUNNING = 6
+EXIT_CODE_BAD_BASH_EXIT = 7  # A shell command returned a non-zero exit code.
 
 # Global variables
 lockFile = None  # File handle for locking out multiple running instances (fcntl requires this to be global).
@@ -89,13 +88,11 @@ class Account:
             self.homeDir, self.shell] = passwdEntry.split(':')
 
 
-# Log a message to syslog and print it to stdout unless in --quiet mode.
+# Log a message to syslog and print it to stdout unless in --quiet mode. This should be used for transient
+# conditions only as it may otherwise flood syslog. If the message might be recurring then either print it to
+# console or send it to logExit().
 def logMessage(priority, msg):
-    if priority == syslog.LOG_ERR:
-        msg = "ERROR: " + msg
-    if priority == syslog.LOG_WARNING:
-        msg = "WARNING: " + msg
-
+    assert priority == syslog.LOG_INFO
     if not options['simulate']:
         syslog.syslog(priority, msg)
 
@@ -106,13 +103,8 @@ def logMessage(priority, msg):
 # Log a message to syslog and quit. Exiting with a single message ensures that the program will never flood the syslog
 # with multi-line messages that syslog can't trim to 'blah blah blah' happened 8000 times.
 def logExit(priority, msg, exitCode):
-    if priority == syslog.LOG_ERR:
-        msg = "ERROR: " + msg
-    if priority == syslog.LOG_WARNING:
-        msg = "WARNING: " + msg
-
     if not options['simulate']:
-        syslog.syslog(priority, msg)
+        syslog.syslog(priority, "Exiting because: " + msg)
 
     if not options['quiet']:
         print msg
@@ -126,9 +118,8 @@ def textFileIntoLines(filePath):
         with open(filePath, 'r') as textFile:
             textLines = textFile.read().splitlines()
     except IOError as e:
-        logMessage(syslog.LOG_ERR, "Unable to open local file" + filePath)
-        logMessage(syslog.LOG_ERR, str(e))
-        exit(EXIT_CODE_FAILURE_TO_OPEN_LOCAL_FILE)
+        logExit(syslog.LOG_ERR, "Unable to open local file" + filePath +
+                ". " + str(e), EXIT_CODE_FAILURE_TO_OPEN_LOCAL_FILE)
 
     return textLines
 
@@ -136,8 +127,8 @@ def textFileIntoLines(filePath):
 # Execute a console command and print results.
 def executeCommand(command):
     status, output = commands.getstatusoutput(command)
-    if status != 0:
-        logMessage(syslog.LOG_WARNING, "Non-zero exit code on command: " + command + "\n  " + output)
+    if status != 0 and not options['quiet']:
+        print "WARNING: Non-zero exit code on command: " + command + "\n  " + output
     return status
 
 
@@ -150,8 +141,8 @@ def getUsers(target=None):
             passwdFile = open('/etc/passwd', 'r')
             shadowFile = open('/etc/shadow', 'r')
         except IOError as e:
-            logMessage(syslog.LOG_ERR, "Unable to open local file.\n" + str(e))
-            exit(EXIT_CODE_FAILURE_TO_OPEN_LOCAL_FILE)
+            logExit(syslog.LOG_ERR, "Unable to open local file.\n" +
+                    str(e), EXIT_CODE_FAILURE_TO_OPEN_LOCAL_FILE)
     else:  # If a remote target was given then open remote files.
         passwdFile = subprocess.Popen(['ssh', target, 'cat', '/etc/passwd'], stdout=subprocess.PIPE).stdout
         shadowFile = subprocess.Popen(['ssh', target, 'cat', '/etc/shadow'], stdout=subprocess.PIPE).stdout
@@ -312,8 +303,7 @@ def lockExecution():
     try:
         fcntl.flock(lockFile, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except IOError:
-        logMessage(syslog.LOG_ERR, "Another instance is already running.")
-        sys.exit(EXIT_CODE_INSTANCE_ALREADY_RUNNING)
+        logExit(syslog.LOG_ERR, "Another instance is already running.", EXIT_CODE_INSTANCE_ALREADY_RUNNING)
 
 
 """
@@ -403,11 +393,11 @@ def main():
         timeStamp = datetime.datetime.now().strftime('%Y-%m-%d-%Hh-%Mm-%Ss')
         prefix = options['backupDir'] + '/' + 'backup_' + timeStamp
         if executeCommand('ssh -n ' + destAddress + ' cp /etc/passwd ' + prefix + '_passwd'):
-            logMessage(syslog.LOG_ERR, "Unable to create remote backup of /etc/passwd file.")
-            exit(EXIT_CODE_UNABLE_TO_BACKUP)
+            logExit(syslog.LOG_ERR, "Unable to create remote backup of /etc/passwd file.", \
+                    EXIT_CODE_UNABLE_TO_BACKUP)
         if executeCommand('ssh -n ' + destAddress + ' cp /etc/shadow ' + prefix + '_shadow'):
-            logMessage(syslog.LOG_ERR, "Unable to create remote backup of /etc/shadow file.")
-            exit(EXIT_CODE_UNABLE_TO_BACKUP)
+            logExit(syslog.LOG_ERR, "Unable to create remote backup of /etc/shadow file.", \
+                    EXIT_CODE_UNABLE_TO_BACKUP)
 
     # Migrate new users.
     failedUsers = []
