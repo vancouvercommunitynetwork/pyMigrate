@@ -7,6 +7,11 @@ target=$1
 
 rm $dummies  # Delete any existing copy of the list of test users.
 
+for i in $(seq 100 15099)
+do
+    echo test$i >> $dummies
+done
+
 # Normal migration case.
 echo testMigrate >> $dummies
 useradd -c "'fake user'" -u 2001 -g 1105 testMigrate
