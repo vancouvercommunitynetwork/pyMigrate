@@ -1,11 +1,14 @@
 #!/usr/bin/env python
 
 # TO DO
+# Optimize your user categorizing code. List comprehensions seem to be too slow. Currently
+# it takes 16 seconds to run with 15k users.
 # Make it test the ssh connection and halt if unable to connect. You'll want something like:
 #   ssh -o BatchMode=yes root@192.168.20.45 exit
 #   but you'll also need to add timeout functionality so it won't sit forever if the destination doesn't exist.
 # Find some cleaner way of consuming command-line arguments.
 # Do a code review to check for cruft.
+# Include uid=1000 in the migration list and protect your pi user account some other way
 
 
 # Error Modes to Cover:
@@ -62,6 +65,7 @@ EXIT_CODE_FOUND_UNCATEGORIZED_USERS = 4  # Program choked on a user it couldn't 
 EXIT_CODE_UNABLE_TO_BACKUP = 5  # Program failed to create backups of passwd and shadow.
 EXIT_CODE_INSTANCE_ALREADY_RUNNING = 6  # Program quit because multiple instances aren't allowed.
 EXIT_CODE_NOT_ROOT = 7  # Program must be run with root authority.
+EXIT_CODE_SUB_UID_MAXED_OUT = 8  # Destination may have reached the limit of subordinate UIDs.
 
 # Global variables
 lockFile = None  # File handle for locking out multiple running instances (fcntl requires this to be global).
@@ -88,7 +92,8 @@ def addRemoteUser(target, account):
     cmd = "ssh -n " + target + " /usr/sbin/useradd -p \\''" + account.password + \
           "'\\' -u " + account.uid + " -g " + account.gid + \
           " -d /home -M -s /usr/sbin/nologin -K MAIL_DIR=/dev/null " + account.username
-    return executeCommand(cmd)
+    status = executeCommand(cmd)
+    return status
 
 
 # Open and close the lock file to test for root privilege. This is more portable than
@@ -144,6 +149,8 @@ def getRemoteUsers(target):
 # Read /etc/passwd and /etc/shadow files to produce a list of the non-system usernames
 # present on a system and a dictionary of Accounts keyed by username.
 def getUsers(target=None):
+    global options
+
     # Get file handles.
     if target is None:  # If no target was given then open local files.
         try:
@@ -162,6 +169,8 @@ def getUsers(target=None):
 
     # Construct user list and preliminary user dictionary from passwd file entries.
     users, userAccountDict = [], {}
+    if options['verbose']:
+        print "Constructing list of user accounts."
     for passwdEntry in passwdEntries:
         account = Account(passwdEntry)
         if LOWEST_USER_ID <= int(account.uid) <= HIGHEST_USER_ID:  # Ignore irregular users.
@@ -169,6 +178,8 @@ def getUsers(target=None):
             userAccountDict[account.username] = account
 
     # Replace account password field placeholders with actual passwords from /etc/shadow entries.
+    if options['verbose']:
+        print "Reading user passwords into account data."
     for shadowEntry in shadowEntries:
         shadowFields = shadowEntry.split(':')
         username, shadowPassword = shadowFields[0], shadowFields[1]
@@ -351,7 +362,11 @@ def main():
     userListFilename = sys.argv[-1]
 
     # Load lists of usernames and construct dictionaries of account data.
+    if options['verbose']:
+        print "Loading local users..."
     srcUsers, srcAccountDict = getLocalUsers()
+    if options['verbose']:
+        print "Loading remote users..."
     destUsers, destAccountDict = getRemoteUsers(destAddress)
     listedUsers = textFileIntoLines(userListFilename)
 
@@ -361,20 +376,30 @@ def main():
         ###################################################################
     """
     # Listed users found at source but not at destination get migrated.
+    if options['verbose']:
+        print "Determining users to migrate."
     migratingUsers = [u for u in listedUsers if u in srcUsers and u not in destUsers]
 
     # Any users at destination and not at source should be marked for deletion.
+    if options['verbose']:
+        print "Determining users to delete from destination machine."
     doomedUsers = [u for u in destUsers if u not in srcUsers]
 
     # Optionally mark for deletion users that exist at both ends but are no longer listed.
     if options['unlistedGetDeleted']:
+        if options['verbose']:
+            print "Determining unlisted users who will also be deleted."
         doomedUsers += [u for u in destUsers if u in srcUsers and u not in listedUsers]
 
     # Update users that have changed their password.
+    if options['verbose']:
+        print "Determining users with passwords that need to be updated."
     updatingUsers = [u for u in srcUsers if u in destUsers and u not in doomedUsers and
                      srcAccountDict[u].password != destAccountDict[u].password]
 
     # Determine which listed users are missing, if any.
+    if options['verbose']:
+        print "Identifying listed users that are missing from source machine."
     missingUsers = [u for u in listedUsers if u not in srcUsers and u not in destUsers]
 
     # Optionally run the program in simulation mode.
