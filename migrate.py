@@ -8,7 +8,7 @@
 #   but you'll also need to add timeout functionality so it won't sit forever if the destination doesn't exist.
 # Find some cleaner way of consuming command-line arguments.
 # Do a code review to check for cruft.
-# Include uid=1000 in the migration list and protect your pi user account some other way
+# Include uid=1000 in the migration set and protect your pi user account some other way.
 
 
 # Error Modes to Cover:
@@ -112,6 +112,30 @@ def checkForRootPrivilege():
             logExit(syslog.LOG_ERR, "Creating " + LOCK_FILE + " triggered:\n" + str(e))
 
 
+# Convert /etc/passwd and /etc/shadow entries into  list of usernames and dictionary of account info.
+def constructUserDataSet(passwdEntries, shadowEntries):
+    # Construct user list and preliminary user dictionary from passwd file entries.
+    users, userAccountDict = [], {}
+    if options['verbose']:
+        print "Constructing list of user accounts."
+    for passwdEntry in passwdEntries:
+        account = Account(passwdEntry)
+        if LOWEST_USER_ID <= int(account.uid) <= HIGHEST_USER_ID:  # Ignore irregular users.
+            users.append(account.username)
+            userAccountDict[account.username] = account
+
+    # Replace account password field placeholders with actual passwords from /etc/shadow entries.
+    if options['verbose']:
+        print "Reading user passwords into account data."
+    for shadowEntry in shadowEntries:
+        shadowFields = shadowEntry.split(':')
+        username, shadowPassword = shadowFields[0], shadowFields[1]
+        if username in userAccountDict:
+            userAccountDict[username].password = shadowPassword
+
+    return users, userAccountDict
+
+
 # Create an ordered set of unique elements (the Python "sets" module is deprecated).
 def createUnionOfLists(listOfLists):
     itemDictionary = {}
@@ -167,26 +191,7 @@ def getUsers(target=None):
     passwdEntries = passwdFile.read().splitlines()
     shadowEntries = shadowFile.read().splitlines()
 
-    # Construct user list and preliminary user dictionary from passwd file entries.
-    users, userAccountDict = [], {}
-    if options['verbose']:
-        print "Constructing list of user accounts."
-    for passwdEntry in passwdEntries:
-        account = Account(passwdEntry)
-        if LOWEST_USER_ID <= int(account.uid) <= HIGHEST_USER_ID:  # Ignore irregular users.
-            users.append(account.username)
-            userAccountDict[account.username] = account
-
-    # Replace account password field placeholders with actual passwords from /etc/shadow entries.
-    if options['verbose']:
-        print "Reading user passwords into account data."
-    for shadowEntry in shadowEntries:
-        shadowFields = shadowEntry.split(':')
-        username, shadowPassword = shadowFields[0], shadowFields[1]
-        if username in userAccountDict:
-            userAccountDict[username].password = shadowPassword
-
-    return users, userAccountDict
+    return constructUserDataSet(passwdEntries, shadowEntries)
 
 
 # Lock out execution of multiple instances.
