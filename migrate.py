@@ -112,6 +112,16 @@ def checkForRootPrivilege():
             logExit(syslog.LOG_ERR, "Creating " + LOCK_FILE + " triggered:\n" + str(e))
 
 
+# A testing function that will generate x number of fake passwd and shadow entries.
+def constructFakeEntries(count):
+    passwdEntries, shadowEntries = [], []
+    for i in range(1, count):
+        passwdEntries.append('fake' + str(i) +  ':x:' + str(2000 + i) + ':1107:dummy:/home:')
+        shadowEntries.append('fake' + str(i) + '!:::::::')
+
+    return passwdEntries, shadowEntries
+
+
 # Convert /etc/passwd and /etc/shadow entries into  list of usernames and dictionary of account info.
 def constructUserDataSet(passwdEntries, shadowEntries):
     # Construct user list and preliminary user dictionary from passwd file entries.
@@ -296,6 +306,9 @@ def processCommandLineOptions():
         elif sys.argv[i] == '-b' or sys.argv[i] == '--backup-dir':
             argsConsumed += 2
             options['backupDir'] = sys.argv[i + 1]
+        elif sys.argv[i] == '--fake':
+            argsConsumed += 1
+            options['fake'] = True
 
     return argsConsumed
 
@@ -374,6 +387,18 @@ def main():
         print "Loading remote users..."
     destUsers, destAccountDict = getRemoteUsers(destAddress)
     listedUsers = textFileIntoLines(userListFilename)
+
+    # Replace all data with fake stuff if --fake was used.
+    if options['fake']:
+        options['simulate'], options['verbose'] = True, True
+        fakeUserCount = 15000
+        passwdEntries, shadowEntries = constructFakeEntries(fakeUserCount)
+
+        srcUsers, srcAccountDict = constructUserDataSet(passwdEntries, shadowEntries)
+        destUsers, destAccountDict = constructUserDataSet(passwdEntries, shadowEntries)
+        listedUsers = []
+        for i in range(1, fakeUserCount):
+            listedUsers.append('fake' + str(i))
 
     """
         ###################################################################
