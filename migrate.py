@@ -112,6 +112,15 @@ def checkForRootPrivilege():
             logExit(syslog.LOG_ERR, "Creating " + LOCK_FILE + " triggered:\n" + str(e))
 
 
+# Function to several lists into a set of unique elements, then return it as a list.
+def uniquelyCombineLists(listOfLists):
+    itemDict = {}
+    for list in listOfLists:
+        for item in list:
+            itemDict[item] = True
+    return itemDict.keys()
+
+
 # A testing function that will generate x number of fake passwd and shadow entries.
 def constructFakeEntries(count):
     passwdEntries, shadowEntries = [], []
@@ -405,39 +414,76 @@ def main():
         ###########   CATEGORIZE USERS   ##################################
         ###################################################################
     """
-    # Listed users found at source but not at destination get migrated.
-    if options['verbose']:
-        print "Determining users to migrate."
-    migratingUsers = [u for u in listedUsers if u in srcUsers and u not in destUsers]
+    # Construct a dictionary of the listed users to use as a hash table.
+    listedDict = {}
+    for userName in listedUsers:
+        listedDict[userName] = True
 
-    # Any users at destination and not at source should be marked for deletion.
-    if options['verbose']:
-        print "Determining users to delete from destination machine."
-    doomedUsers = [u for u in destUsers if u not in srcUsers]
+    # Construct a list of all unique usernames.
+    allUsers = uniquelyCombineLists([listedUsers, srcUsers, destUsers])
 
-    # Optionally mark for deletion users that exist at both ends but are no longer listed.
-    if options['unlistedGetDeleted']:
-        if options['verbose']:
-            print "Determining unlisted users who will also be deleted."
-        doomedUsers += [u for u in destUsers if u in srcUsers and u not in listedUsers]
+    # Categorize users.
+    migratingUsers, doomedUsers, updatingUsers = [], [], []
+    for userName in allUsers:
+        # Listed users found at source but not at destination get migrated.
+        if userName in listedDict and userName in srcAccountDict and userName not in destAccountDict:
+            migratingUsers.append(userName)
 
-    # Update users that have changed their password.
-    if options['verbose']:
-        print "Determining users with passwords that need to be updated."
-    updatingUsers = [u for u in srcUsers if u in destUsers and u not in doomedUsers and
-                     srcAccountDict[u].password != destAccountDict[u].password]
+        # Any users at destination and not at source should be marked for deletion.
+        if userName in destAccountDict:
+            if userName not in srcAccountDict:
+                doomedUsers.append(userName)
 
-    # Determine which listed users are missing, if any.
-    if options['verbose']:
-        print "Identifying listed users that are missing from source machine."
-    missingUsers = [u for u in listedUsers if u not in srcUsers and u not in destUsers]
+            # Optionally mark for deletion users that exist at both ends but are no longer listed.
+            elif options['unlistedGetDeleted'] and userName in destAccountDict and userName not in listedDict:
+                doomedUsers.append(userName)
+
+        # Update users that have changed their password.
+        if userName in srcAccountDict and userName in destAccountDict:
+            if srcAccountDict[userName].password != destAccountDict[userName].password:
+                updatingUsers.append(userName)
+
+    # Determine missing users if that information will be shown.
+    missingUsers = []
+    if options['verbose'] or options['simulate']:
+        for userName in listedUsers:
+            if userName not in srcAccountDict:
+                missingUsers.append(userName)
+
+    # # Listed users found at source but not at destination get migrated.
+    # if options['verbose']:
+    #     print "Determining users to migrate."
+    # migratingUsers = [u for u in listedUsers if u in srcUsers and u not in destUsers]
+    #
+    # # Any users at destination and not at source should be marked for deletion.
+    # if options['verbose']:
+    #     print "Determining users to delete from destination machine."
+    # doomedUsers = [u for u in destUsers if u not in srcUsers]
+    #
+    # # Optionally mark for deletion users that exist at both ends but are no longer listed.
+    # if options['unlistedGetDeleted']:
+    #     if options['verbose']:
+    #         print "Determining unlisted users who will also be deleted."
+    #     doomedUsers += [u for u in destUsers if u in srcUsers and u not in listedUsers]
+    #
+    # # Update users that have changed their password.
+    # if options['verbose']:
+    #     print "Determining users with passwords that need to be updated."
+    # updatingUsers = [u for u in srcUsers if u in destUsers and u not in doomedUsers and
+    #                  srcAccountDict[u].password != destAccountDict[u].password]
+    #
+    # # Determine which listed users are missing, if any.
+    # if options['verbose']:
+    #     print "Identifying listed users that are missing from source machine."
+    # missingUsers = [u for u in listedUsers if u not in srcUsers and u not in destUsers]
 
     # Optionally run the program in simulation mode.
     if options['simulate']:
         # Determine all the users for whom no action is taken.
-        ignoredUsers = [u for u in srcUsers if u not in listedUsers and u not in destUsers]
+        ignoredUsers = [u for u in srcUsers if u not in listedDict and u not in destAccountDict]
         if not options['unlistedGetDeleted']:
-            ignoredUsers += [u for u in srcUsers if u not in listedUsers and u in destUsers and u not in updatingUsers]
+            ignoredUsers += [u for u in srcUsers if u not in listedDict and
+                             u in destAccountDict and u not in updatingUsers]
         ignoredUsers += [u for u in listedUsers if u in srcUsers and u in destUsers and u not in updatingUsers]
 
         # Show simulation results and quit.
@@ -462,10 +508,10 @@ def main():
         timeStamp = datetime.datetime.now().strftime('%Y-%m-%d-%Hh-%Mm-%Ss')
         prefix = options['backupDir'] + '/' + 'backup_' + timeStamp
         if executeCommand('ssh -n ' + destAddress + ' cp /etc/passwd ' + prefix + '_passwd'):
-            logExit(syslog.LOG_ERR, "Unable to create remote backup of /etc/passwd file.", \
+            logExit(syslog.LOG_ERR, "Unable to create remote backup of /etc/passwd file.",
                     EXIT_CODE_UNABLE_TO_BACKUP)
         if executeCommand('ssh -n ' + destAddress + ' cp /etc/shadow ' + prefix + '_shadow'):
-            logExit(syslog.LOG_ERR, "Unable to create remote backup of /etc/shadow file.", \
+            logExit(syslog.LOG_ERR, "Unable to create remote backup of /etc/shadow file.",
                     EXIT_CODE_UNABLE_TO_BACKUP)
 
     # Migrate new users.
