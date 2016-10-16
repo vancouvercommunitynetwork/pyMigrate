@@ -49,6 +49,7 @@ import subprocess
 import sys
 import datetime
 import syslog
+import time
 
 # Constants
 DEFAULT_REMOTE_BACKUP_DIR = '/mnt/pymigrate/backups'
@@ -135,8 +136,7 @@ def constructFakeEntries(count):
 def constructUserDataSet(passwdEntries, shadowEntries):
     # Construct user list and preliminary user dictionary from passwd file entries.
     users, userAccountDict = [], {}
-    if options['verbose']:
-        print "Constructing list of user accounts."
+    printVerbose("Constructing list of user accounts.")
     for passwdEntry in passwdEntries:
         account = Account(passwdEntry)
         if LOWEST_USER_ID <= int(account.uid) <= HIGHEST_USER_ID:  # Ignore irregular users.
@@ -144,8 +144,7 @@ def constructUserDataSet(passwdEntries, shadowEntries):
             userAccountDict[account.username] = account
 
     # Replace account password field placeholders with actual passwords from /etc/shadow entries.
-    if options['verbose']:
-        print "Reading user passwords into account data."
+    printVerbose("Reading user passwords into account data.")
     for shadowEntry in shadowEntries:
         shadowFields = shadowEntry.split(':')
         username, shadowPassword = shadowFields[0], shadowFields[1]
@@ -175,7 +174,7 @@ def deleteRemoteUser(target, username):
 def executeCommand(command):
     status, output = commands.getstatusoutput(command)
     if status != 0:
-        loudPrint("WARNING: Non-zero exit code on command: " + command + "\n  " + output)
+        printLoud("WARNING: Non-zero exit code on command: " + command + "\n  " + output)
     return status
 
 
@@ -234,7 +233,7 @@ def logExit(priority, msg, exitCode):
     if not options['simulate']:
         syslog.syslog(priority, "Exiting because: " + msg)
 
-    loudPrint(msg)
+    printLoud(msg)
 
     exit(exitCode)
 
@@ -247,13 +246,7 @@ def logMessage(priority, msg):
     if not options['simulate']:
         syslog.syslog(priority, msg)
 
-    loudPrint(msg)
-
-
-# Print a message to console if the --quiet option is turned off.
-def loudPrint(msg):
-    if not options['quiet']:
-        print msg
+    printLoud(msg)
 
 
 def printHelpMessage():
@@ -272,6 +265,18 @@ Transfer/update user accounts specified in USER LIST FILE to the DESTINATION com
 Example:
     ./migrate.py root@192.168.1.257 bunch_of_users.txt
 """
+
+
+# Print a message to console if the --quiet option is turned off.
+def printLoud(msg):
+    if not options['quiet']:
+        print msg
+
+
+# Print a message to console if the --verbose option is turn on (--quiet overrides this).
+def printVerbose(msg):
+    if options['verbose'] and not options['quiet']:
+        print msg
 
 
 # Process the command-line arguments and return a count of how many were consumed.
@@ -388,15 +393,6 @@ def main():
     destAddress = sys.argv[-2]
     userListFilename = sys.argv[-1]
 
-    # Load lists of usernames and construct dictionaries of account data.
-    if options['verbose']:
-        print "Loading local users..."
-    srcUsers, srcAccountDict = getLocalUsers()
-    if options['verbose']:
-        print "Loading remote users..."
-    destUsers, destAccountDict = getRemoteUsers(destAddress)
-    listedUsers = textFileIntoLines(userListFilename)
-
     # Replace all data with fake stuff if --fake was used.
     if options['fake']:
         options['simulate'], options['verbose'] = True, True
@@ -408,6 +404,13 @@ def main():
         listedUsers = []
         for i in range(1, fakeUserCount):
             listedUsers.append('fake' + str(i))
+    else:
+        # Load lists of usernames and construct dictionaries of account data.
+        listedUsers = textFileIntoLines(userListFilename)
+        printVerbose("Loading local users...")
+        srcUsers, srcAccountDict = getLocalUsers()
+        printVerbose("Loading remote users...")
+        destUsers, destAccountDict = getRemoteUsers(destAddress)
 
     """
         ###################################################################
@@ -423,7 +426,9 @@ def main():
     allUsers = uniquelyCombineLists([listedUsers, srcUsers, destUsers])
 
     # Categorize users.
+    printLoud("Categorizing users.")
     migratingUsers, doomedUsers, updatingUsers = [], [], []
+
     for userName in allUsers:
         # Listed users found at source but not at destination get migrated.
         if userName in listedDict and userName in srcAccountDict and userName not in destAccountDict:
@@ -446,36 +451,10 @@ def main():
     # Determine missing users if that information will be shown.
     missingUsers = []
     if options['verbose'] or options['simulate']:
+        printLoud("Checking for listed users that are missing from source machine.")
         for userName in listedUsers:
             if userName not in srcAccountDict:
                 missingUsers.append(userName)
-
-    # # Listed users found at source but not at destination get migrated.
-    # if options['verbose']:
-    #     print "Determining users to migrate."
-    # migratingUsers = [u for u in listedUsers if u in srcUsers and u not in destUsers]
-    #
-    # # Any users at destination and not at source should be marked for deletion.
-    # if options['verbose']:
-    #     print "Determining users to delete from destination machine."
-    # doomedUsers = [u for u in destUsers if u not in srcUsers]
-    #
-    # # Optionally mark for deletion users that exist at both ends but are no longer listed.
-    # if options['unlistedGetDeleted']:
-    #     if options['verbose']:
-    #         print "Determining unlisted users who will also be deleted."
-    #     doomedUsers += [u for u in destUsers if u in srcUsers and u not in listedUsers]
-    #
-    # # Update users that have changed their password.
-    # if options['verbose']:
-    #     print "Determining users with passwords that need to be updated."
-    # updatingUsers = [u for u in srcUsers if u in destUsers and u not in doomedUsers and
-    #                  srcAccountDict[u].password != destAccountDict[u].password]
-    #
-    # # Determine which listed users are missing, if any.
-    # if options['verbose']:
-    #     print "Identifying listed users that are missing from source machine."
-    # missingUsers = [u for u in listedUsers if u not in srcUsers and u not in destUsers]
 
     # Optionally run the program in simulation mode.
     if options['simulate']:
@@ -503,10 +482,16 @@ def main():
     """
     # If changes will be made then perform a backup of the user files.
     if migratingUsers or doomedUsers or updatingUsers:
-        # Create the backups directory if necessary.
+        printLoud("Creating backups of remote /etc/passwd and /etc/shadow.")
+
+        # Create the backup directory at destination machine.
         executeCommand('ssh -n ' + destAddress + ' mkdir -p ' + options['backupDir'])
+
+        # Construct a filename prefix for backup files.
         timeStamp = datetime.datetime.now().strftime('%Y-%m-%d-%Hh-%Mm-%Ss')
         prefix = options['backupDir'] + '/' + 'backup_' + timeStamp
+
+        # Attempt to backup files and quit the program if unable to.
         if executeCommand('ssh -n ' + destAddress + ' cp /etc/passwd ' + prefix + '_passwd'):
             logExit(syslog.LOG_ERR, "Unable to create remote backup of /etc/passwd file.",
                     EXIT_CODE_UNABLE_TO_BACKUP)
@@ -517,8 +502,7 @@ def main():
     # Migrate new users.
     failedUsers = []
     for username in migratingUsers:
-        if options['verbose']:
-            print "Migrating new user: " + username
+        printVerbose("Migrating new user: " + username)
         result = addRemoteUser(destAddress, srcAccountDict[username])
         if result != 0:
             # Track all users that failed migration.
@@ -527,14 +511,12 @@ def main():
 
     # Delete users at destination if they have been marked for destruction.
     for username in doomedUsers:
-        if options['verbose']:
-            print "Deleting user: " + username
+        printVerbose("Deleting user: " + username)
         deleteRemoteUser(destAddress, username)
 
     # Update users who have changed their password.
     for username in updatingUsers:
-        if options['verbose']:
-            print "Updating password for user: " + username
+        printVerbose("Updating password for user: " + username)
         updateRemoteUserPassword(destAddress, username, srcAccountDict[username].password)
 
     if migratingUsers:
@@ -548,8 +530,8 @@ def main():
                    usernameListToLimitedString(failedUsers) + "\nGroup ID might not be present " +
                    "at destination. Turn off \"--quiet\" for more information.")
         # Non-zero exit code on a failed migration triggers an explanatory message elsewhere.
-        loudPrint( "Failed to migrate users: " + usernameListToLimitedString(failedUsers))
+        printLoud("Failed to migrate users: " + usernameListToLimitedString(failedUsers))
     if missingUsers:
-        loudPrint("Couldn't find users: " + usernameListToLimitedString(missingUsers))
+        printLoud("Couldn't find users: " + usernameListToLimitedString(missingUsers))
 
 main()
