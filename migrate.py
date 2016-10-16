@@ -1,15 +1,33 @@
 #!/usr/bin/env python
 
+# This software is released under the GNU General Public License by Scott Bishop.
+
+# A utility for migrating Linux users to a destination machine given a list of usernames.
+# The program operates by these rules:
+#   (1) If a user is on the list then they will be migrated if they haven't already been.
+#   (2) If a user is deleted from the source then they will be deleted at the destination, whether
+#       they're on the list or not.
+#   (3) If a user has changed their password then their new password will be copied to the destination,
+#       whether they're on the list or not.
+#   (4) If the --unlisted-get-deleted option is used then removing a user from the list will delete
+#       them at the destination.
+
+
+#
+# WARNING: User accounts at the destination machine may get deleted as part of this program's normal
+# operation. Use caution when running this program.
+
+# Development Notes
+# To improve portability the program is restricted to one file and uses only the common
+# pre-installed Python libraries rather than libraries such as Paramiko or Fabric.
+
 # TO DO
-# Optimize your user categorizing code. List comprehensions seem to be too slow. Currently
-# it takes 16 seconds to run with 15k users.
 # Make it test the ssh connection and halt if unable to connect. You'll want something like:
 #   ssh -o BatchMode=yes root@192.168.20.45 exit
 #   but you'll also need to add timeout functionality so it won't sit forever if the destination doesn't exist.
 # Find some cleaner way of consuming command-line arguments.
 # Do a code review to check for cruft.
 # Include uid=1000 in the migration set and protect your pi user account some other way.
-
 
 # Error Modes to Cover:
 #   Bad connection:
@@ -28,20 +46,9 @@
 #   Listed users: The users whose usernames are listed in the text file given to this program.
 
 # Intentions
-#   The program should not alter system accounts (1001 < uid < 60000).
+#   The program should not alter system accounts (1000 < uid < 60000).
 #   The program should not alter user accounts on the machine it is run from.
 #   The program should not alter the text file it is given (the one listing users to be migrated).
-
-# Performance Specs
-#   0.4 secs to process 100 users when no actions were necessary.
-#   13m17s to migrate 1000 users (avg 0.8secs/user).
-#   0.6 secs to process 1000 users when no actions were necessary.
-#   21m27s to delete 1000 users (avg 1.3secs/user).
-
-# This is a program for migrating Linux user accounts from one machine to another. To
-# improve portability this program is restricted to one file and uses only the common
-# pre-installed Python libraries rather than libraries such as Paramiko or Fabric.
-
 
 import commands
 import fcntl
