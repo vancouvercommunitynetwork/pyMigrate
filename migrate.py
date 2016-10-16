@@ -198,9 +198,11 @@ def getUsers(target=None):
         try:
             passwdFile = open('/etc/passwd', 'r')
             shadowFile = open('/etc/shadow', 'r')
+
         except IOError as e:
             logExit(syslog.LOG_ERR, "Unable to open local file.\n" +
                     str(e), EXIT_CODE_FAILURE_TO_OPEN_LOCAL_FILE)
+
     else:  # If a remote target was given then open remote files.
         passwdFile = subprocess.Popen(['ssh', target, 'cat', '/etc/passwd'], stdout=subprocess.PIPE).stdout
         shadowFile = subprocess.Popen(['ssh', target, 'cat', '/etc/shadow'], stdout=subprocess.PIPE).stdout
@@ -219,6 +221,7 @@ def lockExecution():
     try:
         lockFile = open(LOCK_FILE, 'w')
         fcntl.flock(lockFile, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
     except IOError as e:
         if e[0] == 11:
             logExit(syslog.LOG_ERR, "Another instance is already running.", \
@@ -238,9 +241,8 @@ def logExit(priority, msg, exitCode):
     exit(exitCode)
 
 
-# Log a message to syslog and print it to stdout unless in --quiet mode. This should be used for transient
-# conditions only as it may otherwise flood syslog. If the message might be recurring then either print it to
-# console or send it to logExit().
+# Log a message to syslog and print it to stdout unless in --quiet mode. This should be used for messages that
+# won't occur every single time the program is run as that could cause syslog flooding.
 def logMessage(priority, msg):
     assert priority == syslog.LOG_INFO or priority == syslog.LOG_WARNING
     if not options['simulate']:
