@@ -458,12 +458,25 @@ def main():
 
     # Optionally run the program in simulation mode.
     if options['simulate']:
-        # Determine all the users for whom no action is taken.
-        ignoredUsers = [u for u in srcUsers if u not in listedDict and u not in destAccountDict]
-        if not options['unlistedGetDeleted']:
-            ignoredUsers += [u for u in srcUsers if u not in listedDict and
-                             u in destAccountDict and u not in updatingUsers]
-        ignoredUsers += [u for u in listedUsers if u in srcUsers and u in destUsers and u not in updatingUsers]
+        printLoud("Determining users that aren't being changed (ignored users).")
+        # Determine which users are unchanged. Start with the set of all users.
+        allUsersDict = {}
+        for userName in allUsers:
+            allUsersDict[userName] = True
+
+        # Mark all changed users
+        for userName in migratingUsers:
+            allUsersDict[userName] = False
+        for userName in doomedUsers:
+            allUsersDict[userName] = False
+        for userName in updatingUsers:
+            allUsersDict[userName] = False
+
+        # Ignored users = all users - changed users.
+        ignoredUsers = []
+        for userName in allUsersDict.keys():
+            if allUsersDict[userName]:
+                ignoredUsers.append(userName)
 
         # Show simulation results and quit.
         print "Simulated User Categorization"
@@ -500,6 +513,8 @@ def main():
                     EXIT_CODE_UNABLE_TO_BACKUP)
 
     # Migrate new users.
+    if migratingUsers:
+        printLoud("Moving new users.")
     failedUsers = []
     for username in migratingUsers:
         printVerbose("Migrating new user: " + username)
@@ -510,15 +525,20 @@ def main():
             failedUsers.append(username)
 
     # Delete users at destination if they have been marked for destruction.
+    if doomedUsers:
+        printLoud("Deleting users.")
     for username in doomedUsers:
         printVerbose("Deleting user: " + username)
         deleteRemoteUser(destAddress, username)
 
     # Update users who have changed their password.
+    if updatingUsers:
+        printLoud("Updating user passwords.")
     for username in updatingUsers:
         printVerbose("Updating password for user: " + username)
         updateRemoteUserPassword(destAddress, username, srcAccountDict[username].password)
 
+    printLoud("Updating syslog.")
     if migratingUsers:
         logMessage(syslog.LOG_INFO, "Migrated users: " + usernameListToLimitedString(migratingUsers))
     if doomedUsers:
@@ -527,8 +547,8 @@ def main():
         logMessage(syslog.LOG_INFO, "Updated users: " + usernameListToLimitedString(updatingUsers))
     if failedUsers:
         logMessage(syslog.LOG_WARNING, "Failed migrations: " +
-                   usernameListToLimitedString(failedUsers) + "\nGroup ID might not be present " +
-                   "at destination. Turn off \"--quiet\" for more information.")
+                   usernameListToLimitedString(failedUsers) + ". Maybe their group wasn't " +
+                   "found at destination.")
         # Non-zero exit code on a failed migration triggers an explanatory message elsewhere.
         printLoud("Failed to migrate users: " + usernameListToLimitedString(failedUsers))
     if missingUsers:
