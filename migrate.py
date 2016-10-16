@@ -2,8 +2,11 @@
 
 # This software is released under the GNU General Public License by Scott Bishop.
 
-# A utility for migrating Linux users to a destination machine given a list of usernames.
-# The program operates by these rules:
+# WARNING: User accounts at the destination machine may get deleted as part of this program's normal
+# operation. Use caution when running this program.
+
+# This program takes a list of usernames and partially synchronizes their accounts at a destination machine.
+# The program operates by the following rules:
 #   (1) If a user is on the list then they will be migrated if they haven't already been.
 #   (2) If a user is deleted from the source then they will be deleted at the destination, whether
 #       they're on the list or not.
@@ -11,30 +14,11 @@
 #       whether they're on the list or not.
 #   (4) If the --unlisted-get-deleted option is used then removing a user from the list will delete
 #       them at the destination.
+#   (5) No local accounts or system accounts (based on UID) will be altered.
 
-
-#
-# WARNING: User accounts at the destination machine may get deleted as part of this program's normal
-# operation. Use caution when running this program.
-
-# Development Notes
-# To improve portability the program is restricted to one file and uses only the common
+# Development Notes:
+# To improve portability this program consists of only one file and uses only the common
 # pre-installed Python libraries rather than libraries such as Paramiko or Fabric.
-
-# TO DO
-# Make it test the ssh connection and halt if unable to connect. You'll want something like:
-#   ssh -o BatchMode=yes root@192.168.20.45 exit
-#   but you'll also need to add timeout functionality so it won't sit forever if the destination doesn't exist.
-# Find some cleaner way of consuming command-line arguments.
-# Do a code review to check for cruft.
-# Include uid=1000 in the migration set and protect your pi user account some other way.
-
-# Error Modes to Cover:
-#   Bad connection:
-#      Host is reachable but SSH server isn't running.
-#      No route to host: a remote machine can't be found on the network.
-#      No SSH pre-authorization for remote machine.
-#      SSH pre-authorization for remote machine exists but lacks root privilege.
 
 # Source Code Terminology
 #   Entry: A line from /etc/passwd or /etc/shadow containing. These contain fields separated by colons.
@@ -45,10 +29,13 @@
 #   Destination: The machine that users are migrating to (always a remote host).
 #   Listed users: The users whose usernames are listed in the text file given to this program.
 
-# Intentions
-#   The program should not alter system accounts (1000 < uid < 60000).
-#   The program should not alter user accounts on the machine it is run from.
-#   The program should not alter the text file it is given (the one listing users to be migrated).
+# TO DO
+# Make it test the ssh connection and halt if unable to connect. You'll want something like:
+#   ssh -o BatchMode=yes root@192.168.20.45 exit
+#   but you'll also need to add timeout functionality so it won't sit forever if the destination doesn't exist.
+# Find some cleaner way of consuming command-line arguments.
+# Do a code review to check for cruft.
+# Include uid=1000 in the migration set and protect your pi user account some other way.
 
 import commands
 import fcntl
@@ -56,7 +43,6 @@ import subprocess
 import sys
 import datetime
 import syslog
-import time
 
 # Constants
 DEFAULT_REMOTE_BACKUP_DIR = '/mnt/pymigrate/backups'
