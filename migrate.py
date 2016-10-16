@@ -16,12 +16,17 @@
 #       them at the destination.
 #   (5) No local accounts or system accounts (based on UID) will be altered.
 
-# Development Notes:
+# Portability
 # To improve portability this program consists of only one file and uses only the common
 # pre-installed Python libraries rather than libraries such as Paramiko or Fabric.
 
+# Performance
+# The program uses hashing to avoid any nested loops and operates with O(n) efficiency for n users. As a
+# rule of thumb the program will require one second per 60,000 user accounts analyzed plus one second per
+# action taken (account migration, deletion or update).
+
 # Source Code Terminology
-#   Entry: A line from /etc/passwd or /etc/shadow containing. These contain fields separated by colons.
+#   Entry: A line from /etc/passwd or /etc/shadow. These contain fields separated by colons.
 #   Field: An item in a line from /etc/passwd or /etc/shadow.
 #   User: Synonym for username.
 #   Account: A data structure representing a user's data with attributes like UID and password.
@@ -30,6 +35,7 @@
 #   Listed users: The users whose usernames are listed in the text file given to this program.
 
 # TO DO
+# Remove the --fake option
 # Make it test the ssh connection and halt if unable to connect. You'll want something like:
 #   ssh -o BatchMode=yes root@192.168.20.45 exit
 #   but you'll also need to add timeout functionality so it won't sit forever if the destination doesn't exist.
@@ -58,7 +64,7 @@ EXIT_CODE_HELP_MESSAGE = 3  # Program showed help and quit without taking any ac
 EXIT_CODE_FOUND_UNCATEGORIZED_USERS = 4  # Program choked on a user it couldn't categorize.
 EXIT_CODE_UNABLE_TO_BACKUP = 5  # Program failed to create backups of passwd and shadow.
 EXIT_CODE_INSTANCE_ALREADY_RUNNING = 6  # Program quit because multiple instances aren't allowed.
-EXIT_CODE_NOT_ROOT = 7  # Program must be run with root authority.
+EXIT_CODE_NOT_ROOT = 7  # Program wasn't run with root authority.
 EXIT_CODE_SUB_UID_MAXED_OUT = 8  # Destination may have reached the limit of subordinate UIDs.
 
 # Global variables
