@@ -1,5 +1,10 @@
 #!/usr/bin/env python
 
+# IMPORTANT:
+# Resend a >14000 version of the fixuid.py fixer script and finish updating the users at both ends.
+
+
+
 # This software is released under the GNU General Public License by Scott Bishop (2016).
 
 # WARNING: User accounts at the destination machine may get deleted as part of this program's normal
