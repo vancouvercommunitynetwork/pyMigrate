@@ -20,41 +20,41 @@ do
 done
 
 # Normal migration case.
-echo testMigrate >> $dummies
-useradd -c "'fake user'" -u 40001 -g 1105 testMigrate
-ssh -n $target deluser testMigrate
+echo dummyMigrate >> $dummies
+useradd -c "'fake user'" -u 40001 -g 1105 dummyMigrate
+ssh -n $target deluser dummyMigrate
 
 # !list, !source, dest. Deleted.
-deluser testDelete
-ssh -n $target useradd -c "'fake user'" -u 40002 -g 1105 testDelete
+deluser dummyDelete
+ssh -n $target useradd -c "'fake user'" -u 40002 -g 1105 dummyDelete
 
 # list, !source, dest. Deleted.
-echo testDelete2 >> $dummies
-deluser testDelete2
-ssh -n $target useradd -c "'fake user'" -u 40003 -g 1105 testDelete2
+echo dummyDelete2 >> $dummies
+deluser dummyDelete2
+ssh -n $target useradd -c "'fake user'" -u 40003 -g 1105 dummyDelete2
 
 # !list, source, dest. Deleted if -u option, ignored otherwise.
-useradd -c "'fake user'" -u 40004 -g 1105 testUnlisted
-ssh -n $target useradd -c "'fake user'" -g 1105 testUnlisted
+useradd -c "'fake user'" -u 40004 -g 1105 dummyUnlisted
+ssh -n $target useradd -c "'fake user'" -g 1105 dummyUnlisted
 
 # !list, source, dest, changed. Deleted if -u option, updated otherwise.
-useradd -c "'fake user'" -u 40005 -g 1105 testUpdateUL -p newpass
-ssh -n $target deluser testUpdateUL
-ssh -n $target useradd -c "'fake user'" -g 1105 testUpdateUL -p oldpass
+useradd -c "'fake user'" -u 40005 -g 1105 dummyUpdateUL -p newpass
+ssh -n $target deluser dummyUpdateUL
+ssh -n $target useradd -c "'fake user'" -g 1105 dummyUpdateUL -p oldpass
 
 # list, source, dest, changed. Updated.
-echo testUpdate >> $dummies
-useradd -c "'fake user'" -u 40006 -g 1105 testUpdate -p newpass
-ssh -n $target deluser testUpdate
-ssh -n $target useradd -c "'fake user'" -g 1105 testUpdate -p oldpass
+echo dummyUpdate >> $dummies
+useradd -c "'fake user'" -u 40006 -g 1105 dummyUpdate -p newpass
+ssh -n $target deluser dummyUpdate
+ssh -n $target useradd -c "'fake user'" -g 1105 dummyUpdate -p oldpass
 
 # list, !source, !dest. Missing.
-echo testMissing >> $dummies
+echo dummyMissing >> $dummies
 
 # !list, source, !dest. Ignored
-useradd -c "'fake user'" -u 40007 -g 1105 testIgnore
+useradd -c "'fake user'" -u 40007 -g 1105 dummyIgnore
 
 # list, source, dest. Ignored.
-echo testIgnore2 >> $dummies
-useradd -c "'fake user'" -u 40008 -g 1105 testIgnore2
-ssh -n $target useradd -c "'fake user'" -g 1105 testIgnore2
+echo dummyIgnore2 >> $dummies
+useradd -c "'fake user'" -u 40008 -g 1105 dummyIgnore2
+ssh -n $target useradd -c "'fake user'" -g 1105 dummyIgnore2
