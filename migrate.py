@@ -514,45 +514,52 @@ def main():
             logExit(syslog.LOG_ERR, "Unable to create remote backup of /etc/shadow file.",
                     EXIT_CODE_UNABLE_TO_BACKUP)
 
-    # Migrate new users.
-    if migratingUsers:
-        printLoud("Moving new users.")
-    failedUsers = []
-    for username in migratingUsers:
-        printVerbose("Migrating new user: " + username)
-        result = addRemoteUser(destAddress, srcAccountDict[username])
-        if result != 0:
-            # Track all users that failed migration.
-            migratingUsers.remove(username)
-            failedUsers.append(username)
+        printLoud("Updating user set at destination.")
 
-    # Delete users at destination if they have been marked for destruction.
-    if doomedUsers:
-        printLoud("Deleting users.")
-    for username in doomedUsers:
-        printVerbose("Deleting user: " + username)
-        deleteRemoteUser(destAddress, username)
+        # Migrate new users.
+        if migratingUsers:
+            printLoud("Moving new users.")
+        failedUsers = []
+        for username in migratingUsers:
+            printVerbose("Migrating new user: " + username)
+            result = addRemoteUser(destAddress, srcAccountDict[username])
+            if result != 0:
+                # Track all users that failed migration.
+                migratingUsers.remove(username)
+                failedUsers.append(username)
 
-    # Update users who have changed their password.
-    if updatingUsers:
-        printLoud("Updating user passwords.")
-    for username in updatingUsers:
-        printVerbose("Updating password for user: " + username)
-        updateRemoteUserPassword(destAddress, username, srcAccountDict[username].password)
+        # Delete users at destination if they have been marked for destruction.
+        if doomedUsers:
+            printLoud("Deleting users.")
+        for username in doomedUsers:
+            printVerbose("Deleting user: " + username)
+            deleteRemoteUser(destAddress, username)
 
-    printLoud("Updating syslog.")
-    if migratingUsers:
-        logMessage(syslog.LOG_INFO, "Migrated users: " + usernameListToLimitedString(migratingUsers))
-    if doomedUsers:
-        logMessage(syslog.LOG_INFO, "Deleted users: " + usernameListToLimitedString(doomedUsers))
-    if updatingUsers:
-        logMessage(syslog.LOG_INFO, "Updated users: " + usernameListToLimitedString(updatingUsers))
-    if failedUsers:
-        logMessage(syslog.LOG_WARNING, "Failed migrations: " +
-                   usernameListToLimitedString(failedUsers) + ". Maybe their group wasn't " +
-                   "found at destination.")
-        # Non-zero exit code on a failed migration triggers an explanatory message elsewhere.
-        printLoud("Failed to migrate users: " + usernameListToLimitedString(failedUsers))
+        # Update users who have changed their password.
+        if updatingUsers:
+            printLoud("Updating user passwords.")
+        for username in updatingUsers:
+            printVerbose("Updating password for user: " + username)
+            updateRemoteUserPassword(destAddress, username, srcAccountDict[username].password)
+
+        printLoud("Updating syslog.")
+        if migratingUsers:
+            logMessage(syslog.LOG_INFO, "Migrated users: " + usernameListToLimitedString(migratingUsers))
+        if doomedUsers:
+            logMessage(syslog.LOG_INFO, "Deleted users: " + usernameListToLimitedString(doomedUsers))
+        if updatingUsers:
+            logMessage(syslog.LOG_INFO, "Updated users: " + usernameListToLimitedString(updatingUsers))
+        if failedUsers:
+            logMessage(syslog.LOG_WARNING, "Failed migrations: " +
+                       usernameListToLimitedString(failedUsers) + ". Maybe their group wasn't " +
+                       "found at destination.")
+            # Non-zero exit code on a failed migration triggers an explanatory message elsewhere.
+            printLoud("Failed to migrate users: " + usernameListToLimitedString(failedUsers))
+
+    # If there are no users to migrate, delete or update then state that fact.
+    else:
+        printLoud("No user changes need to be made.")
+
     if missingUsers:
         printLoud("Couldn't find users: " + usernameListToLimitedString(missingUsers))
 
