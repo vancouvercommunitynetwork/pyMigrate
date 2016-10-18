@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-# This software is released under the GNU General Public License by Scott Bishop.
+# This software is released under the GNU General Public License by Scott Bishop (2016).
 
 # WARNING: User accounts at the destination machine may get deleted as part of this program's normal
 # operation. Use caution when running this program.
@@ -79,7 +79,7 @@ class Account:
         # Pull the needed fields from the entries. The field ordering in passwd and shadow are:
         #    username:password:userID:groupID:gecos:homeDir:shell
         #    username:password:lastchanged:minimum:maximum:warn:inactive:expire
-        [self.username, self.password, self.uid, self.gid, self.gecos, \
+        [self.username, self.password, self.uid, self.gid, self.gecos,
             self.homeDir, self.shell] = passwdEntry.split(':')
 
 
@@ -106,7 +106,7 @@ def checkForRootPrivilege():
         testFile.close()
     except IOError as e:
         if e[0] == 13:
-            logExit(syslog.LOG_ERR, "Program must be run with root authority.", \
+            logExit(syslog.LOG_ERR, "Program must be run with root authority.",
                     EXIT_CODE_NOT_ROOT)
         else:
             logExit(syslog.LOG_ERR, "Creating " + LOCK_FILE + " triggered:\n" + str(e))
@@ -125,7 +125,7 @@ def uniquelyCombineLists(listOfLists):
 def constructFakeEntries(count):
     passwdEntries, shadowEntries = [], []
     for i in range(1, count):
-        passwdEntries.append('fake' + str(i) +  ':x:' + str(2000 + i) + ':1107:dummy:/home:')
+        passwdEntries.append('fake' + str(i) + ':x:' + str(2000 + i) + ':1107:dummy:/home:')
         shadowEntries.append('fake' + str(i) + '!:::::::')
 
     return passwdEntries, shadowEntries
@@ -223,7 +223,7 @@ def lockExecution():
 
     except IOError as e:
         if e[0] == 11:
-            logExit(syslog.LOG_ERR, "Another instance is already running.", \
+            logExit(syslog.LOG_ERR, "Another instance is already running.",
                     EXIT_CODE_INSTANCE_ALREADY_RUNNING)
         else:
             logExit(syslog.LOG_ERR, "Locking " + LOCK_FILE + " triggered:\n" + str(e))
@@ -296,6 +296,7 @@ def processCommandLineOptions():
         'verbose': False,
         'simulate': False,
         'quiet': False,
+        'fake': False,
         'backupDir': DEFAULT_REMOTE_BACKUP_DIR
     }
 
