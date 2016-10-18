@@ -341,6 +341,18 @@ def textFileIntoLines(filePath):
     return textLines
 
 
+# Propagate password, UID and gecos fields from a local account to the remote of same username.
+def updateRemoteUser(target, localUserAcct):
+    password = localUserAcct.password
+    uid = localUserAcct.uid
+    gecos = localUserAcct.gecos
+    username = localUserAcct.username
+    # Construct and execute command to remotely update user password, UID and gecos field.
+    cmd = "ssh -n " + target + " /usr/sbin/usermod -p \\''" + password + "'\\' -u " +\
+          str(uid) + " -c \\''" + gecos + "'\\' " + username
+    executeCommand(cmd)
+
+
 # Change a user password at a remote machine
 def updateRemoteUserPassword(target, username, newPassword):
     # Construct and execute command to remotely update user password
@@ -445,9 +457,11 @@ def main():
             elif options['unlistedGetDeleted'] and userName in destAccountDict and userName not in listedDict:
                 doomedUsers.append(userName)
 
-        # Update users that have changed their password.
+        # Update users that have changed their password, UID or full name (gecos).
         if userName in srcAccountDict and userName in destAccountDict:
-            if srcAccountDict[userName].password != destAccountDict[userName].password:
+            if srcAccountDict[userName].password != destAccountDict[userName].password or \
+               srcAccountDict[userName].uid != destAccountDict[userName].uid or \
+               srcAccountDict[userName].gecos != destAccountDict[userName].gecos:
                 updatingUsers.append(userName)
 
     # Determine missing users if that information will be shown.
@@ -539,8 +553,8 @@ def main():
         if updatingUsers:
             printLoud("Updating user passwords.")
         for username in updatingUsers:
-            printVerbose("Updating password for user: " + username)
-            updateRemoteUserPassword(destAddress, username, srcAccountDict[username].password)
+            printVerbose("Updating account info for user: " + username)
+            updateRemoteUser(destAddress, srcAccountDict[username])
 
         printLoud("Updating syslog.")
         if migratingUsers:
