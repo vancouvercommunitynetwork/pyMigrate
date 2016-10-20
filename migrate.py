@@ -52,6 +52,7 @@ import syslog
 
 # Constants
 DEFAULT_REMOTE_BACKUP_DIR = '/mnt/pymigrate/backups'
+DEFAULT_SSH_PORT = 22
 LOCK_FILE = "/var/run/vcn_user_data_migration.lck"
 LOWEST_USER_ID, HIGHEST_USER_ID = 1001, 60000  # Inclusive range of effected users.
 MOST_USERNAMES_TO_LIST = 5  # No message should dump more than this many usernames.
@@ -89,7 +90,7 @@ class Account:
 #       shell is forced to be /usr/sbin/nologin
 def addRemoteUser(target, account):
     # Construct and execute command to remotely add user.
-    cmd = "ssh -n " + target + " /usr/sbin/useradd -p \\''" + account.password + \
+    cmd = "ssh -p" + str(options['port']) + " -n " + target + " /usr/sbin/useradd -p \\''" + account.password + \
           "'\\' -u " + account.uid + " -g " + account.gid + \
           " -c \\''" + account.gecos + "'\\'" + \
           " -d /home -M -s /usr/sbin/nologin -K MAIL_DIR=/dev/null " + account.username
@@ -166,7 +167,7 @@ def createUnionOfLists(listOfLists):
 # Delete a user account at a remote machine.
 def deleteRemoteUser(target, username):
     # Construct and execute command to remotely delete user.
-    cmd = 'ssh -n ' + target + ' /usr/sbin/deluser -quiet ' + username
+    cmd = 'ssh -p' + str(options['port']) + ' -n ' + target + ' /usr/sbin/deluser -quiet ' + username
     executeCommand(cmd)
 
 
@@ -204,8 +205,8 @@ def getUsers(target=None):
                     str(e), EXIT_CODE_FAILURE_TO_OPEN_LOCAL_FILE)
 
     else:  # If a remote target was given then open remote files.
-        passwdFile = subprocess.Popen(['ssh', target, 'cat', '/etc/passwd'], stdout=subprocess.PIPE).stdout
-        shadowFile = subprocess.Popen(['ssh', target, 'cat', '/etc/shadow'], stdout=subprocess.PIPE).stdout
+        passwdFile = subprocess.Popen(['ssh', '-p', str(options['port']), target, 'cat', '/etc/passwd'], stdout=subprocess.PIPE).stdout
+        shadowFile = subprocess.Popen(['ssh', '-p', str(options['port']), target, 'cat', '/etc/shadow'], stdout=subprocess.PIPE).stdout
 
     # Split text files into lists of lines.
     passwdEntries = passwdFile.read().splitlines()
@@ -263,6 +264,7 @@ Transfer/update user accounts specified in USER LIST FILE to the DESTINATION com
   -s, --simulate              simulate running the program, but perform no actions
   -q, --quiet                 run program without output to console
   -b, --backup-dir [PATH]     set the remote directory to store backups of /etc/shadow and /etc/passwd, by default it is /mnt/pymigrate/backups
+  -p, --port [PORT NUMBER]    specify a different SSH port at the destination
 
 Example:
     ./migrate.py root@192.168.1.257 bunch_of_users.txt
@@ -298,7 +300,8 @@ def processCommandLineOptions():
         'simulate': False,
         'quiet': False,
         'fake': False,
-        'backupDir': DEFAULT_REMOTE_BACKUP_DIR
+        'backupDir': DEFAULT_REMOTE_BACKUP_DIR,
+        'port': DEFAULT_SSH_PORT
     }
 
     # Process command-line options.
@@ -323,6 +326,9 @@ def processCommandLineOptions():
         elif sys.argv[i] == '-b' or sys.argv[i] == '--backup-dir':
             argsConsumed += 2
             options['backupDir'] = sys.argv[i + 1]
+        elif sys.argv[i] == '-p' or sys.argv[i] == '--port':
+            argsConsumed += 2
+            options['port'] = sys.argv[i + 1]
         elif sys.argv[i] == '--fake':
             argsConsumed += 1
             options['fake'] = True
@@ -342,22 +348,15 @@ def textFileIntoLines(filePath):
     return textLines
 
 
-# Propagate password, UID and gecos fields from a local account to the remote of same username.
+    # Propagate password, UID and gecos fields from a local account to the remote of same username.
 def updateRemoteUser(target, localUserAcct):
     password = localUserAcct.password
     uid = localUserAcct.uid
     gecos = localUserAcct.gecos
     username = localUserAcct.username
     # Construct and execute command to remotely update user password, UID and gecos field.
-    cmd = "ssh -n " + target + " /usr/sbin/usermod -p \\''" + password + "'\\' -u " +\
+    cmd = "ssh -p " + str(options['port']) + " -n " + target + " /usr/sbin/usermod -p \\''" + password + "'\\' -u " +\
           str(uid) + " -c \\''" + gecos + "'\\' " + username
-    executeCommand(cmd)
-
-
-# Change a user password at a remote machine
-def updateRemoteUserPassword(target, username, newPassword):
-    # Construct and execute command to remotely update user password
-    cmd = "ssh -n " + target + " /usr/sbin/usermod -p \\''" + newPassword + "'\\' " + username
     executeCommand(cmd)
 
 
@@ -515,17 +514,17 @@ def main():
         printLoud("Backing up passwd and shadow to " + DEFAULT_REMOTE_BACKUP_DIR)
 
         # Create the backup directory at destination machine.
-        executeCommand('ssh -n ' + destAddress + ' mkdir -p ' + options['backupDir'])
+        executeCommand('ssh -p ' + str(options['port']) + ' -n ' + destAddress + ' mkdir -p ' + options['backupDir'])
 
         # Construct a filename prefix for backup files.
         timeStamp = datetime.datetime.now().strftime('%Y-%m-%d-%Hh-%Mm-%Ss')
         prefix = options['backupDir'] + '/' + 'backup_' + timeStamp
 
         # Attempt to backup files and quit the program if unable to.
-        if executeCommand('ssh -n ' + destAddress + ' cp /etc/passwd ' + prefix + '_passwd'):
+        if executeCommand('ssh -p ' + str(options['port']) + ' -n ' + destAddress + ' cp /etc/passwd ' + prefix + '_passwd'):
             logExit(syslog.LOG_ERR, "Unable to create remote backup of /etc/passwd file.",
                     EXIT_CODE_UNABLE_TO_BACKUP)
-        if executeCommand('ssh -n ' + destAddress + ' cp /etc/shadow ' + prefix + '_shadow'):
+        if executeCommand('ssh -p ' + str(options['port']) + ' -n ' + destAddress + ' cp /etc/shadow ' + prefix + '_shadow'):
             logExit(syslog.LOG_ERR, "Unable to create remote backup of /etc/shadow file.",
                     EXIT_CODE_UNABLE_TO_BACKUP)
 
