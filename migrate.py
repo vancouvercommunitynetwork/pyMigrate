@@ -51,10 +51,6 @@
 #   Destination: The machine that users are migrating to (always a remote host).
 #   Listed users: The users whose usernames are listed in the text file given to this program.
 
-# TO DO
-# Find some cleaner way of consuming command-line arguments.
-# Include uid=1000 in the migration set and protect your pi user account some other way.
-
 import commands
 import fcntl
 import subprocess
@@ -66,7 +62,7 @@ import syslog
 DEFAULT_REMOTE_BACKUP_DIR = '/mnt/pymigrate/backups'
 DEFAULT_SSH_PORT = 22
 LOCK_FILE = "/var/run/vcn_user_data_migration.lck"
-LOWEST_USER_ID, HIGHEST_USER_ID = 1001, 60000  # Inclusive range of effected users.
+LOWEST_USER_ID, HIGHEST_USER_ID = 1000, 60000  # Inclusive range of effected users.
 MOST_USERNAMES_TO_LIST = 5  # No message should dump more than this many usernames.
 
 # Console return values
