@@ -96,6 +96,7 @@ def addRemoteUser(target, account):
     # Construct and execute command to remotely add user.
     cmd = "ssh -n " + target + " /usr/sbin/useradd -p \\''" + account.password + \
           "'\\' -u " + account.uid + " -g " + account.gid + \
+          " -c \\''" + account.gecos + "'\\' " + \
           " -d /home -M -s /usr/sbin/nologin -K MAIL_DIR=/dev/null " + account.username
     status = executeCommand(cmd)
     return status
@@ -445,7 +446,7 @@ def main():
     allUsers = uniquelyCombineLists([listedUsers, srcUsers, destUsers])
 
     # Categorize users.
-    printLoud("Categorizing users.")
+    printVerbose("Categorizing users.")
     migratingUsers, doomedUsers, updatingUsers = [], [], []
 
     for userName in allUsers:
@@ -516,7 +517,7 @@ def main():
     """
     # If changes will be made then perform a backup of the user files.
     if migratingUsers or doomedUsers or updatingUsers:
-        printLoud("Creating backups of remote /etc/passwd and /etc/shadow.")
+        printLoud("Backing up passwd and shadow to " + DEFAULT_REMOTE_BACKUP_DIR)
 
         # Create the backup directory at destination machine.
         executeCommand('ssh -n ' + destAddress + ' mkdir -p ' + options['backupDir'])
@@ -540,7 +541,7 @@ def main():
             printLoud("Moving new users.")
         failedUsers = []
         for username in migratingUsers:
-            printVerbose("Migrating new user: " + username)
+            printVerbose("    Migrating user: " + username)
             result = addRemoteUser(destAddress, srcAccountDict[username])
             if result != 0:
                 # Track all users that failed migration.
@@ -551,14 +552,14 @@ def main():
         if doomedUsers:
             printLoud("Deleting users.")
         for username in doomedUsers:
-            printVerbose("Deleting user: " + username)
+            printVerbose("    Deleting user: " + username)
             deleteRemoteUser(destAddress, username)
 
         # Update users who have changed their password.
         if updatingUsers:
             printLoud("Updating user passwords.")
         for username in updatingUsers:
-            printVerbose("Updating account info for user: " + username)
+            printVerbose("    Updating user: " + username)
             updateRemoteUser(destAddress, srcAccountDict[username])
 
         printLoud("Updating syslog.")
