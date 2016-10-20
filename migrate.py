@@ -67,6 +67,7 @@ EXIT_CODE_UNABLE_TO_BACKUP = 5  # Program failed to create backups of passwd and
 EXIT_CODE_INSTANCE_ALREADY_RUNNING = 6  # Program quit because multiple instances aren't allowed.
 EXIT_CODE_NOT_ROOT = 7  # Program wasn't run with root authority.
 EXIT_CODE_SUB_UID_MAXED_OUT = 8  # Destination may have reached the limit of subordinate UIDs.
+EXIT_CODE_UNABLE_TO_CONNECT = 9  # Destination was unreachable.
 
 # Global variables
 lockFile = None  # File handle for locking out multiple running instances (fcntl requires this to be global).
@@ -406,6 +407,12 @@ def main():
     # Take destination and migrant list file from last two command-line arguments.
     destAddress = sys.argv[-2]
     userListFilename = sys.argv[-1]
+
+    # Test remote connection.
+    command = "ssh -p " + str(options['port']) + " -o BatchMode=yes " + destAddress + " exit"
+    status, output = commands.getstatusoutput(command)
+    if status != 0:
+        logExit(syslog.LOG_ERR, output, EXIT_CODE_UNABLE_TO_CONNECT)
 
     # Replace all data with fake stuff if --fake was used.
     if options['fake']:
