@@ -1,10 +1,5 @@
 #!/usr/bin/env python
 
-# IMPORTANT:
-# Resend a >14000 version of the fixuid.py fixer script and finish updating the users at both ends.
-
-
-
 # This software is released under the GNU General Public License by Scott Bishop (2016).
 
 # WARNING: User accounts at the destination machine may get deleted as part of this program's normal
@@ -96,7 +91,7 @@ def addRemoteUser(target, account):
     # Construct and execute command to remotely add user.
     cmd = "ssh -n " + target + " /usr/sbin/useradd -p \\''" + account.password + \
           "'\\' -u " + account.uid + " -g " + account.gid + \
-          " -c \\''" + account.gecos + "'\\' " + \
+          " -c \\''" + account.gecos + "'\\'" + \
           " -d /home -M -s /usr/sbin/nologin -K MAIL_DIR=/dev/null " + account.username
     status = executeCommand(cmd)
     return status
@@ -534,8 +529,6 @@ def main():
             logExit(syslog.LOG_ERR, "Unable to create remote backup of /etc/shadow file.",
                     EXIT_CODE_UNABLE_TO_BACKUP)
 
-        printLoud("Updating user set at destination.")
-
         # Migrate new users.
         if migratingUsers:
             printLoud("Moving new users.")
@@ -557,12 +550,12 @@ def main():
 
         # Update users who have changed their password.
         if updatingUsers:
-            printLoud("Updating user passwords.")
+            printLoud("Updating user accounts.")
         for username in updatingUsers:
             printVerbose("    Updating user: " + username)
             updateRemoteUser(destAddress, srcAccountDict[username])
 
-        printLoud("Updating syslog.")
+        printLoud("The following summary will be recorded in syslog:")
         if migratingUsers:
             logMessage(syslog.LOG_INFO, "Migrated users: " + usernameListToLimitedString(migratingUsers))
         if doomedUsers:
