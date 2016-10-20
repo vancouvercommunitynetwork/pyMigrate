@@ -1,29 +1,46 @@
 #!/usr/bin/env python
 
-# This software is released under the GNU General Public License by Scott Bishop (2016).
+#    Copyright : (c) Copyright 2016 by Scott Bishop (srb@vcn.bc.ca)
+#
+#    This program is free software; you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with this program; if not, write to the Free Software
+#    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 
-# WARNING: User accounts at the destination machine may get deleted as part of this program's normal
-# operation. Use caution when running this program.
+# WARNING
+# As part of its normal operation, this program creates, modifies and deletes
+# the linux user accounts of the destination machine.
 
-# This program takes a list of usernames and partially synchronizes their accounts at a destination machine.
-# The program operates by the following rules:
+# OPERATION
+# This program takes a list of usernames and synchronizes their Linux user accounts at
+# a destination machine. The program operates by the following rules:
 #   (1) If a user is on the list then they will be migrated if they haven't already been.
 #   (2) If a user is deleted from the source then they will be deleted at the destination, whether
 #       they're on the list or not.
-#   (3) If a user has changed their password then their new password will be copied to the destination,
-#       whether they're on the list or not.
+#   (3) If a user has changed their password, user ID or full name (gecos field) then those
+#       changes will be copied to the destination, whether they're on the list or not.
 #   (4) If the --unlisted-get-deleted option is used then removing a user from the list will delete
 #       them at the destination.
 #   (5) No local accounts or system accounts (based on UID) will be altered.
 
-# Portability
+# PERFORMANCE
+# This program uses hashing to avoid any nested loops and operates with O(n) efficiency
+# for n users. As a rule of thumb the program will require one second per 60,000 user
+# accounts analyzed, plus one second per action taken (account migrating, deleting or
+# updating). Each action is performed with an individual ssh call to usermod, useradd or
+# deluser.
+
+# PORTABILITY
 # To improve portability this program consists of only one file and uses only the common
 # pre-installed Python libraries rather than libraries such as Paramiko or Fabric.
-
-# Performance
-# The program uses hashing to avoid any nested loops and operates with O(n) efficiency for n users. As a
-# rule of thumb the program will require one second per 60,000 user accounts analyzed plus one second per
-# action taken (account migration, deletion or update).
 
 # Source Code Terminology
 #   Entry: A line from /etc/passwd or /etc/shadow. These contain fields separated by colons.
@@ -35,12 +52,7 @@
 #   Listed users: The users whose usernames are listed in the text file given to this program.
 
 # TO DO
-# Remove the --fake option
-# Make it test the ssh connection and halt if unable to connect. You'll want something like:
-#   ssh -o BatchMode=yes root@192.168.20.45 exit
-#   but you'll also need to add timeout functionality so it won't sit forever if the destination doesn't exist.
 # Find some cleaner way of consuming command-line arguments.
-# Do a code review to check for cruft.
 # Include uid=1000 in the migration set and protect your pi user account some other way.
 
 import commands
@@ -86,9 +98,7 @@ class Account:
 
 
 # Create a new user account at a remote machine.
-# NOTE: User fields are copied as is with the exceptions:
-#       home directory is forced to be /home
-#       shell is forced to be /usr/sbin/nologin
+# NOTE: home directory will be forced to /home and shell to /usr/sbin/nologin
 def addRemoteUser(target, account):
     # Construct and execute command to remotely add user.
     cmd = "ssh -p" + str(options['port']) + " -n " + target + " /usr/sbin/useradd -p \\''" + account.password + \
@@ -99,8 +109,7 @@ def addRemoteUser(target, account):
     return status
 
 
-# Open and close the lock file to test for root privilege. This is more portable than
-# testing if the user ID is 0.
+# Open and close the lock file to test for root privilege.
 def checkForRootPrivilege():
     global LOCK_FILE
 
@@ -115,26 +124,7 @@ def checkForRootPrivilege():
             logExit(syslog.LOG_ERR, "Creating " + LOCK_FILE + " triggered:\n" + str(e))
 
 
-# Function to several lists into a set of unique elements, then return it as a list.
-def uniquelyCombineLists(listOfLists):
-    itemDict = {}
-    for list in listOfLists:
-        for item in list:
-            itemDict[item] = True
-    return itemDict.keys()
-
-
-# A testing function that will generate x number of fake passwd and shadow entries.
-def constructFakeEntries(count):
-    passwdEntries, shadowEntries = [], []
-    for i in range(1, count):
-        passwdEntries.append('fake' + str(i) + ':x:' + str(2000 + i) + ':1107:dummy:/home:')
-        shadowEntries.append('fake' + str(i) + '!:::::::')
-
-    return passwdEntries, shadowEntries
-
-
-# Convert /etc/passwd and /etc/shadow entries into  list of usernames and dictionary of account info.
+# Convert /etc/passwd and /etc/shadow entries into a list of usernames and dictionary of account info.
 def constructUserDataSet(passwdEntries, shadowEntries):
     # Construct user list and preliminary user dictionary from passwd file entries.
     users, userAccountDict = [], {}
@@ -156,12 +146,12 @@ def constructUserDataSet(passwdEntries, shadowEntries):
     return users, userAccountDict
 
 
-# Create an ordered set of unique elements (the Python "sets" module is deprecated).
+# Create a combined list with no duplicate members (the Python "sets" module is deprecated).
 def createUnionOfLists(listOfLists):
     itemDictionary = {}
     for eachList in listOfLists:
         for item in eachList:
-            itemDictionary[item] = None  # Create dictionary key (value is unimportant)
+            itemDictionary[item] = None  # Create a key (the value is irrelevant).
     return itemDictionary.keys()
 
 
@@ -300,7 +290,6 @@ def processCommandLineOptions():
         'verbose': False,
         'simulate': False,
         'quiet': False,
-        'fake': False,
         'backupDir': DEFAULT_REMOTE_BACKUP_DIR,
         'port': DEFAULT_SSH_PORT
     }
@@ -330,9 +319,6 @@ def processCommandLineOptions():
         elif sys.argv[i] == '-p' or sys.argv[i] == '--port':
             argsConsumed += 2
             options['port'] = sys.argv[i + 1]
-        elif sys.argv[i] == '--fake':
-            argsConsumed += 1
-            options['fake'] = True
 
     return argsConsumed
 
@@ -349,15 +335,15 @@ def textFileIntoLines(filePath):
     return textLines
 
 
-    # Propagate password, UID and gecos fields from a local account to the remote of same username.
+# Propagate password, UID and gecos fields from a local account to the remote of same username.
 def updateRemoteUser(target, localUserAcct):
     password = localUserAcct.password
     uid = localUserAcct.uid
     gecos = localUserAcct.gecos
     username = localUserAcct.username
     # Construct and execute command to remotely update user password, UID and gecos field.
-    cmd = "ssh -p " + str(options['port']) + " -n " + target + " /usr/sbin/usermod -p \\''" + password + "'\\' -u " +\
-          str(uid) + " -c \\''" + gecos + "'\\' " + username
+    cmd = "ssh -p " + str(options['port']) + " -n " + target + " /usr/sbin/usermod -p \\''" + \
+          password + "'\\' -u " + str(uid) + " -c \\''" + gecos + "'\\' " + username
     executeCommand(cmd)
 
 
@@ -414,24 +400,12 @@ def main():
     if status != 0:
         logExit(syslog.LOG_ERR, output, EXIT_CODE_UNABLE_TO_CONNECT)
 
-    # Replace all data with fake stuff if --fake was used.
-    if options['fake']:
-        options['simulate'], options['verbose'] = True, True
-        fakeUserCount = 15000
-        passwdEntries, shadowEntries = constructFakeEntries(fakeUserCount)
-
-        srcUsers, srcAccountDict = constructUserDataSet(passwdEntries, shadowEntries)
-        destUsers, destAccountDict = constructUserDataSet(passwdEntries, shadowEntries)
-        listedUsers = []
-        for i in range(1, fakeUserCount):
-            listedUsers.append('fake' + str(i))
-    else:
-        # Load lists of usernames and construct dictionaries of account data.
-        listedUsers = textFileIntoLines(userListFilename)
-        printVerbose("Loading local users...")
-        srcUsers, srcAccountDict = getLocalUsers()
-        printVerbose("Loading remote users...")
-        destUsers, destAccountDict = getRemoteUsers(destAddress)
+    # Load lists of usernames and construct dictionaries of account data.
+    listedUsers = textFileIntoLines(userListFilename)
+    printVerbose("Loading local users...")
+    srcUsers, srcAccountDict = getLocalUsers()
+    printVerbose("Loading remote users...")
+    destUsers, destAccountDict = getRemoteUsers(destAddress)
 
     """
         ###################################################################
@@ -444,7 +418,7 @@ def main():
         listedDict[userName] = True
 
     # Construct a list of all unique usernames.
-    allUsers = uniquelyCombineLists([listedUsers, srcUsers, destUsers])
+    allUsers = createUnionOfLists([listedUsers, srcUsers, destUsers])
 
     # Categorize users.
     printVerbose("Categorizing users.")
@@ -516,8 +490,11 @@ def main():
         #########   PERFORM ACTIONS ON USERS     ##########################
         ###################################################################
     """
-    # If changes will be made then perform a backup of the user files.
-    if migratingUsers or doomedUsers or updatingUsers:
+    # Check if there are any actions to be performed.
+    if not (migratingUsers or doomedUsers or updatingUsers):
+        printLoud("No user changes need to be made.")
+    else:
+        # Backup the user files before making changes.
         printLoud("Backing up passwd and shadow to " + DEFAULT_REMOTE_BACKUP_DIR)
 
         # Create the backup directory at destination machine.
@@ -542,8 +519,8 @@ def main():
         for username in migratingUsers:
             printVerbose("    Migrating user: " + username)
             result = addRemoteUser(destAddress, srcAccountDict[username])
+            # Keep track of any users that fail to migrate.
             if result != 0:
-                # Track all users that failed migration.
                 migratingUsers.remove(username)
                 failedUsers.append(username)
 
@@ -572,12 +549,6 @@ def main():
             logMessage(syslog.LOG_WARNING, "Failed migrations: " +
                        usernameListToLimitedString(failedUsers) + ". Maybe their group wasn't " +
                        "found at destination.")
-            # Non-zero exit code on a failed migration triggers an explanatory message elsewhere.
-            printLoud("Failed to migrate users: " + usernameListToLimitedString(failedUsers))
-
-    # If there are no users to migrate, delete or update then state that fact.
-    else:
-        printLoud("No user changes need to be made.")
 
     if missingUsers:
         printLoud("Couldn't find users: " + usernameListToLimitedString(missingUsers))
