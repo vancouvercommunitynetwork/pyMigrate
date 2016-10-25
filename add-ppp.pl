@@ -1,4 +1,4 @@
-#!/usr/local/bin/perl
+#!/usr/bin/env perl
 
 #    Copyright : (c) Copyright 1998 by Jason Currell (currell@vcn.bc.ca)
 #
