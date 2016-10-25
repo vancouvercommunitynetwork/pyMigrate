@@ -18,40 +18,39 @@
 
 from bsddb import db                   # the Berkeley db data base
 
-# Part 1: Create database and insert 4 elements
-#
-filename = 'fruit'
+filename = 'user-data'
 
-# Get an instance of BerkeleyDB
-fruitDB = db.DB()
-# Create a database in file "fruit" with a Hash access method
-# 	There are also, B+tree and Recno access methods
-fruitDB.open(filename, None, db.DB_HASH, db.DB_CREATE)
 
-# Print version information
-print '\t', db.DB_VERSION_STRING
+def makeFakeDatabase():
+    # Get an instance of BerkeleyDB
+    userDB = db.DB()
+    # Create a database with a Hash access method
+    # 	There are also, B+tree and Recno access methods
+    userDB.open(filename, None, db.DB_HASH, db.DB_CREATE)
 
-# Insert new elements in database
-fruitDB.put("apple", ["red", 29])
-fruitDB.put("orange", "orange")
-fruitDB.put("banana", "yellow")
-fruitDB.put("tomato", "red")
+    # Populate the database with tab-separated fields.
+    userDB.put("srb", "0	1	2	3	4	5	6	7	8	9	10	11	12	v")
+    userDB.put("user12", "0	1	2	3	4	5	6	7	8	9	10	11	12	p")
+    userDB.put("user13", "0	1	2	3	4	5	6	7	8	9	10	11	12	n")
 
-# Close database
-fruitDB.close()
+    # Close database
+    userDB.close()
 
-# Part 2: Open database and write its contents out
-#
-fruitDB = db.DB()
-# Open database
-#	Access method: Hash
-#	set isolation level to "dirty read (read uncommited)"
-fruitDB.open(filename, None, db.DB_HASH, db.DB_DIRTY_READ)
 
-# get database cursor and print out database content
-cursor = fruitDB.cursor()
-rec = cursor.first()
-while rec:
-        print rec
-        rec = cursor.next()
-fruitDB.close()
+def dumpDatabase():
+    # Open database.
+    userDB = db.DB()
+    userDB.open(filename, None, db.DB_HASH, db.DB_DIRTY_READ)
+
+    # Get database cursor and print database contents.
+    cursor = userDB.cursor()
+    record = cursor.first()
+    while record:
+        username, userString = record
+        user_array = userString.split('\t')
+        print username, user_array[13]
+        record = cursor.next()
+    userDB.close()
+
+
+dumpDatabase()
