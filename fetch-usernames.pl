@@ -16,7 +16,33 @@
 #    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 
 
-$user_data = "user-data";
+my $user_data = "user-data.junk";
+my $output_filename = 'userList.txt';
+
+# Open the database.
+dbmopen(%userDB, "$user_data", 0666) or die("Cannot open user database: $user_data");
+
+# Open the user list text file.
+open(my $outfile, '>', $output_filename) or die "Could not write to file:'$output_filename' $!";
+
+# For each (key, value) pair in the database.
+foreach $key (keys %userDB) {
+    print $db{$key};
+#    split the value by tabs into an array of fields.
+#    if field #13 of value is 'p', 'v', 'o' or 'l'
+#    then print the username to the output file
+#  EXAMPLE OF ACCESSING THE VALUE: delete $db{$key};
+
+}
+
+# Close the user list text file and the user database.
+close $outfile;
+dbmclose(%userDB);
+
+
+##########################################################
+# COPYPASTA GARBAGE                                      #
+##########################################################
 
 #sub get_info {
 ##my %hash_handle2;
