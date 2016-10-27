@@ -15,89 +15,35 @@
 #    along with this program; if not, write to the Free Software
 #    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 
+if (@ARGV != 2) {
+    print "Usage: ./fetch-usernames.pl [USER DATABASE] [USERNAME LIST FILE]\n\n";
+    print "Given the name of a user database (minus the .pag or .dir extensions) this program ";
+    print "will write a new-line separated text file listing all users with PPP access.\n\n";
+    exit;
+}
 
-my $user_data = "user-data.junk";
-my $output_filename = 'userList.txt';
+my $user_data = $ARGV[0];
+my $output_filename = $ARGV[1];
 
-# Open the database.
-dbmopen(%userDB, "$user_data", 0666) or die("Cannot open user database: $user_data");
+# Open the database as a hash (dictionary).
+dbmopen(%userDB, "$user_data", undef) or die("Cannot open user database: $user_data");
 
 # Open the user list text file.
-open(my $outfile, '>', $output_filename) or die "Could not write to file:'$output_filename' $!";
+open(my $output_file, '>', $output_filename) or die "Could not write to file:'$output_filename' $!";
 
 # For each (key, value) pair in the database.
 foreach $key (keys %userDB) {
-    print $db{$key};
-#    split the value by tabs into an array of fields.
-#    if field #13 of value is 'p', 'v', 'o' or 'l'
-#    then print the username to the output file
-#  EXAMPLE OF ACCESSING THE VALUE: delete $db{$key};
+    # Extract the user type from the dictionary.
+    $user_string = $userDB{$key};
+    @user_array = split(/	/,$user_string);
+    $user_type = $user_array[13];
 
+    # Add username to text file if they are of type o, p or v.
+    if ($user_type eq "o" or $user_type eq "p" or $user_type eq "v") {
+        print $output_file "$key\n";
+    }
 }
 
-# Close the user list text file and the user database.
-close $outfile;
+# Close the user list text file and close and unlock the user database.
+close $output_file;
 dbmclose(%userDB);
-
-
-##########################################################
-# COPYPASTA GARBAGE                                      #
-##########################################################
-
-#sub get_info {
-##my %hash_handle2;
-#local($temp);
-#    print "Opening database file $user_data\n";
-#    dbmopen(%hash_handle, "$user_data", undef) || die("Cannot open user database: $user_data");
-#    $temp = $hash_handle{$the_login};
-#    @user_array = split(/	/,$temp);
-#    dbmclose(%hash_handle);
-#}
-#
-##sub add_entry {
-##
-##}
-#
-#&get_info;
-#print "Data: $user_array\n";
-#
-#
-##use strict;
-##use warnings;
-#
-#my $output_filename = 'report.txt';
-#open(my $outfile, '>', $output_filename) or die "Could not write to file:'$output_filename' $!";
-#print $outfile "My dfgergergnerated by perl\n";
-#print $outfile "My dfgergergnerated by perl\n";
-#close $outfile;
-#print "done\n";
-#
-#
-##use strict ;
-##use BerkeleyDB ;
-#
-#    dbmopen(%hash_handle, "$user_data", undef) || die("Cannot open user database: $user_data");
-#    my $filename = "tree" ;
-#    unlink $filename ;
-#    my %h ;
-#    tie %h, 'BerkeleyDB::Btree',
-#                -Filename   => $filename,
-#                -Flags      => DB_CREATE
-#      or die "Cannot open $filename: $! $BerkeleyDB::Error\n" ;
-#
-#    # Add a key/value pair to the file
-#    $h{'Wall'} = 'Larry' ;
-#    $h{'Smith'} = 'John' ;
-#    $h{'mouse'} = 'mickey' ;
-#    $h{'duck'}  = 'donald' ;
-#
-#    # Delete
-#    delete $h{"duck"} ;
-#
-#    # Cycle through the keys printing them in order.
-#    # Note it is not necessary to sort the keys as
-#    # the btree will have kept them in order automatically.
-#    foreach (keys %h)
-#      { print "$_\n" }
-#
-#    untie %h ;
