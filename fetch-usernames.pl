@@ -44,6 +44,6 @@ foreach $key (keys %userDB) {
     }
 }
 
-# Close the user list text file and close and unlock the user database.
+# Close the user list text file and close.
 close $output_file;
 dbmclose(%userDB);
