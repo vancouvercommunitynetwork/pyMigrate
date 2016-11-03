@@ -41,6 +41,8 @@ open(pymigrate_lock_handle, "> $pymigrate_lock_file");
 $pymigrate_not_running = flock(pymigrate_lock_handle, LOCK_EX | LOCK_NB);
 open(database_lock_handle, "> /usr/local/database/lock-file");
 $database_unlocked = flock(database_lock_handle, LOCK_EX | LOCK_NB);
+
+# Halt with an error if unable to establish either lock.
 if ($database_unlocked == 0 or $pymigrate_not_running == 0) {
     close(pymigrate_lock_handle);
     close(database_lock_handle);
@@ -53,6 +55,8 @@ if ($database_unlocked == 0 or $pymigrate_not_running == 0) {
     }
     exit;
 }
+
+# Complete the locks by writing the process ID to them.
 print(pymigrate_lock_handle $$);
 print(database_lock_handle $$);
 
