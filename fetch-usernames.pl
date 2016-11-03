@@ -27,7 +27,7 @@ if (@ARGV != 1) {
     print "Usage: ./fetch-usernames.pl [USERNAME LIST FILE]\n\n";
     print "This script will open $user_data and create a new-line separated text file ";
     print "listing all users with PPP access. It will not run simultaneously with another ";
-    print "instance of itself or an instance of pyMigrate (migrate.py)\n\n";
+    print "instance of itself or an instance of pyMigrate (migrate.py).\n\n";
     print "Example:\n";
     print "    ./fetch-usernames.pl list_of_users.txt\n";
     exit;
