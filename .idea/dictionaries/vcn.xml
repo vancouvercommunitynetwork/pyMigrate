@@ -1,6 +1,8 @@
 <component name="ProjectDictionaryState">
   <dictionary name="vcn">
     <words>
+      <w>dbmclose</w>
+      <w>dbmopen</w>
       <w>deluser</w>
       <w>dest</w>
       <w>fcntl</w>
@@ -9,6 +11,7 @@
       <w>mkdir</w>
       <w>nologin</w>
       <w>passwd</w>
+      <w>pymigrate</w>
       <w>sbin</w>
       <w>uncategorized</w>
       <w>useradd</w>

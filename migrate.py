@@ -212,8 +212,8 @@ def lockExecution():
 
     except IOError as e:
         if e[0] == 11:
-            logExit(syslog.LOG_ERR, "Another instance is already running.",
-                    EXIT_CODE_INSTANCE_ALREADY_RUNNING)
+            logExit(syslog.LOG_ERR, "Execution has been locked out by another program or " +
+                    "another instance of this program.", EXIT_CODE_INSTANCE_ALREADY_RUNNING)
         else:
             logExit(syslog.LOG_ERR, "Locking " + LOCK_FILE + " triggered:\n" + str(e))
 
@@ -254,7 +254,7 @@ Transfer/update user accounts specified in USER LIST FILE to the DESTINATION com
   -p, --port [PORT NUMBER]    specify a different SSH port at the destination
 
 Example:
-    ./migrate.py root@192.168.1.257 bunch_of_users.txt
+    ./migrate.py root@192.168.1.257 list_of_users.txt
 """
 
 
