@@ -26,7 +26,8 @@ $pymigrate_lock_file = "/var/run/vcn_user_data_migration.lck";
 if (@ARGV != 1) {
     print "Usage: ./fetch-usernames.pl [USERNAME LIST FILE]\n\n";
     print "This script will open $user_data and create a new-line separated text file ";
-    print "listing all users with PPP access.\n\n";
+    print "listing all users with PPP access. It will not run simultaneously with another ";
+    print "instance of itself or an instance of pyMigrate (migrate.py)\n\n";
     print "Example:\n";
     print "    ./fetch-usernames.pl list_of_users.txt\n";
     exit;
@@ -54,11 +55,6 @@ if ($database_unlocked == 0 or $pymigrate_not_running == 0) {
 }
 print(pymigrate_lock_handle $$);
 print(database_lock_handle $$);
-
-# DEBUG
-print "Locked and sleeping.\n";  # DEBUG
-sleep 4;  # DEBUG
-print "Awake and unlocking.\n";  # DEBUG
 
 # Open the database as a hash (dictionary).
 dbmopen(%userDB, "$user_data", undef) or die("Cannot open user database: $user_data");
