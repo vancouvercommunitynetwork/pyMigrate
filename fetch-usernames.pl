@@ -20,6 +20,8 @@ use Fcntl ':flock'; # Import LOCK_* constants
 # This is where user database files and lock file are stored.
 $user_data = "/usr/local/database/user-data";
 $database_lock_file = "/usr/local/database/lock-file";
+
+# This is where the execution lock for pyMigrate is stored.
 $pymigrate_lock_file = "/var/run/vcn_user_data_migration.lck";
 
 # Check that the program received the correct number of command-line arguments.
