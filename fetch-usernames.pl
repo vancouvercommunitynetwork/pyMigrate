@@ -16,7 +16,13 @@
 #    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 
 # Purpose
-# This is a helper script specific to Vancouver Community Network (VCN). It reads the Berkeley-format user database and creates a list of users with PPP access that can be given to migrate.py as input. This script uses the same execution lock file as migrate.py to ensure that the two programs cannot run at the same time and neither program can run multiple instances. If the VCN database format or location is changed then this script will need to be changed but migrate.py will not.
+# This is a helper script specific to Vancouver Community Network (VCN). 
+# It reads the Berkeley-format user database and creates a list of users
+# with PPP access that can be given to migrate.py as input. This script
+# uses the same execution lock file as migrate.py to ensure that the two
+# programs cannot run at the same time and neither program can run
+# multiple instances. If the VCN database format or location is changed
+# then this script will need to be changed but migrate.py will not.
 
 use Fcntl ':flock'; # Import LOCK_* constants
 
